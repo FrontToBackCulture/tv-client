@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-const VALID_MODULES = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "analytics", "product", "gallery", "skills", "mcp-tools", "portal", "scheduler", "repos", "email", "blog", "guides", "s3browser", "prospecting", "public-data", "referrals", "investment", "finance", "shared-inbox", "settings"] as const;
+const VALID_MODULES = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "analytics", "product", "gallery", "lab", "mcp-tools", "portal", "scheduler", "repos", "email", "blog", "guides", "s3browser", "prospecting", "public-data", "referrals", "investment", "finance", "shared-inbox", "settings"] as const;
 
 export type ModuleId = (typeof VALID_MODULES)[number];
 export type Theme = "light" | "dark";
@@ -17,19 +17,44 @@ export type SettingsView =
   | null;
 const LAST_MODULE_KEY = "tv-client-last-module";
 
+// Modules that have been folded into another module. The legacy ID is
+// silently rewritten so old deep links and stored last-module values keep
+// working. When rewriting from a URL we also stamp the appropriate sub-tab
+// so the user lands where they expect.
+const LEGACY_MODULE_REDIRECTS: Record<string, { module: ModuleId; tab?: string }> = {
+  skills: { module: "lab", tab: "skills" },
+};
+
 // Get initial module: URL param (multi-window) > localStorage (resume) > default
 function getInitialModule(): ModuleId {
   if (typeof window === "undefined") return "library";
   // Secondary windows use URL param
   const params = new URLSearchParams(window.location.search);
-  const fromUrl = params.get("module") as ModuleId | null;
-  if (fromUrl && VALID_MODULES.includes(fromUrl)) {
-    return fromUrl;
+  const fromUrl = params.get("module");
+  if (fromUrl) {
+    const redirect = LEGACY_MODULE_REDIRECTS[fromUrl];
+    if (redirect) {
+      params.set("module", redirect.module);
+      if (redirect.tab && !params.has("tab")) params.set("tab", redirect.tab);
+      const target = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+      window.history.replaceState({}, "", target);
+      return redirect.module;
+    }
+    if (VALID_MODULES.includes(fromUrl as ModuleId)) {
+      return fromUrl as ModuleId;
+    }
   }
   // Primary window resumes last module
-  const stored = localStorage.getItem(LAST_MODULE_KEY) as ModuleId | null;
-  if (stored && VALID_MODULES.includes(stored)) {
-    return stored;
+  const stored = localStorage.getItem(LAST_MODULE_KEY);
+  if (stored) {
+    const redirect = LEGACY_MODULE_REDIRECTS[stored];
+    if (redirect) {
+      localStorage.setItem(LAST_MODULE_KEY, redirect.module);
+      return redirect.module;
+    }
+    if (VALID_MODULES.includes(stored as ModuleId)) {
+      return stored as ModuleId;
+    }
   }
   return "library";
 }

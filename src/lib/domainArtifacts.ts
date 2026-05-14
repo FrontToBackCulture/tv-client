@@ -15,11 +15,17 @@ interface DomainArtifactRow {
   data_type: string | null;
   data_category: string | null;
   data_sub_category: string | null;
-  usage_status: string | null;
+  // Renamed from usage_status (Layer 1 metadata alignment).
+  status: string | null;
+  // Common metadata added by Layer 1 alignment.
+  subcategory: string | null;
+  owner: string | null;
+  verified: boolean;
   action: string | null;
   data_source: string | null;
   source_system: string | null;
-  tags: string | null;
+  // text → text[] conversion (Layer 1 alignment with skills.tags shape).
+  tags: string[] | null;
   suggested_name: string | null;
   summary_short: string | null;
   summary_full: string | null;
@@ -88,11 +94,15 @@ function supabaseRowToReviewRow(row: DomainArtifactRow): ReviewRow {
     isStale: row.is_stale,
     domain: row.domain,
 
-    // Classification
+    // Classification — canonical (Layer 1) first, then artifact-specific.
+    category: row.category,
+    subcategory: row.subcategory,
+    owner: row.owner,
+    verified: row.verified,
     dataType: row.data_type,
     dataCategory: row.data_category,
     dataSubCategory: row.data_sub_category,
-    usageStatus: row.usage_status,
+    usageStatus: row.status,
     action: row.action,
     dataSource: row.data_source,
     sourceSystem: row.source_system,
@@ -130,8 +140,7 @@ function supabaseRowToReviewRow(row: DomainArtifactRow): ReviewRow {
     lastOverviewAt: null,
     space: row.space,
 
-    // Query-specific
-    category: row.category,
+    // Query-specific (canonical category is set above in the classification block)
     tableName: row.table_name,
     fieldCount: row.field_count,
 
@@ -187,7 +196,7 @@ export async function upsertArtifacts(
     data_type: row.dataType,
     data_category: row.dataCategory,
     data_sub_category: row.dataSubCategory,
-    usage_status: row.usageStatus,
+    status: row.usageStatus,
     action: row.action,
     data_source: row.dataSource,
     source_system: row.sourceSystem,
@@ -212,6 +221,9 @@ export async function upsertArtifacts(
     has_overview: row.hasOverview,
     space: row.space,
     category: row.category,
+    subcategory: row.subcategory,
+    owner: row.owner,
+    verified: row.verified,
     table_name: row.tableName,
     field_count: row.fieldCount,
     widget_count: row.widgetCount,
@@ -250,12 +262,18 @@ export async function upsertArtifactFields(
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
 
-  // Map ReviewRow field names to Supabase column names
+  // Map ReviewRow field names to Supabase column names. Identity-named
+  // entries (category/subcategory/action/tags/solution/owner/verified) work
+  // without a mapping but are included for readability.
   const fieldMap: Record<string, string> = {
+    category: "category",
+    subcategory: "subcategory",
+    owner: "owner",
+    verified: "verified",
     dataType: "data_type",
     dataCategory: "data_category",
     dataSubCategory: "data_sub_category",
-    usageStatus: "usage_status",
+    usageStatus: "status",
     action: "action",
     dataSource: "data_source",
     sourceSystem: "source_system",

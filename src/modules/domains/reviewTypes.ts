@@ -21,6 +21,12 @@ export interface ReviewRow {
   domain?: string;
 
   // Classification (shared — all editable)
+  // Common metadata (Layer 1 alignment) — same shape as skills.
+  category: string | null;
+  subcategory: string | null;
+  owner: string | null;
+  verified: boolean | null;
+  // Artifact-specific data classification — separate from `category`.
   dataType: string | null;
   dataCategory: string | null;
   dataSubCategory: string | null;
@@ -28,7 +34,7 @@ export interface ReviewRow {
   action: string | null;
   dataSource: string | null;
   sourceSystem: string | null;
-  tags: string | null;
+  tags: string[] | null;
   suggestedName: string | null;
   summaryShort: string | null;
   summaryFull: string | null;
@@ -63,7 +69,6 @@ export interface ReviewRow {
   space: string | null;
 
   // Query-specific (null for non-queries)
-  category: string | null;
   tableName: string | null;
   fieldCount: number | null;
 
@@ -85,6 +90,23 @@ export interface ReviewRow {
   gaLastViewed: string | null;
   gaHealthScore: number | null;
   gaHealthStatus: string | null;
+
+  // Deployments (master-domain only — populated when this row is a lab artifact
+  // and we've joined to artifact_deployments). Each entry = one client domain
+  // that has received a copy of this artifact.
+  deployments?: ArtifactDeployment[];
+}
+
+export interface ArtifactDeployment {
+  target_domain: string;
+  drift_status: "in_sync" | "drifted" | "missing" | "unknown";
+  last_deployed_at: string | null;
+  /** Per-column drift counts. Populated for table deployments by
+   *  compute_artifact_drift_tables RPC. Sum tells you intensity; broken-out
+   *  values feed the chip tooltip. Null for non-table types or unknown/missing. */
+  drift_added: number | null;
+  drift_removed: number | null;
+  drift_changed: number | null;
 }
 
 // Classification fields that are editable
@@ -99,6 +121,8 @@ export const EDITABLE_FIELDS = new Set([
 export const FIELD_TO_STORE: Record<string, ClassificationField> = {
   dataCategory: "dataCategory",
   dataSubCategory: "dataSubCategory",
+  // Data Representation — newly typed values flow into lookup_values too.
+  dataType: "dataType",
   usageStatus: "usageStatus",
   action: "action",
   dataSource: "dataSource",

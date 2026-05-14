@@ -143,6 +143,7 @@ fn copy_skill_dir_recursive(
     src_dir: &Path,
     dest_dir: &Path,
     domain: &str,
+    all_domains: &[String],
     skill: &str,
     errors: &mut Vec<String>,
 ) {
@@ -160,15 +161,37 @@ fn copy_skill_dir_recursive(
 
         if path.is_dir() {
             if SKIP_DIRS.contains(&fname.as_str()) { continue; }
+
+            // `_domains/{domain}/` contents are flattened up to this level so
+            // SKILL.md can keep referencing plain paths like `references/foo.md`.
+            // Non-matching domains are skipped.
+            if fname == "_domains" {
+                let domain_subdir = path.join(domain);
+                if domain_subdir.is_dir() {
+                    copy_skill_dir_recursive(&domain_subdir, dest_dir, domain, all_domains, skill, errors);
+                }
+                continue;
+            }
+
             let sub_dest = dest_dir.join(&fname);
             if let Err(e) = fs::create_dir_all(&sub_dest) {
                 errors.push(format!("Failed to create {}/{}/: {}", skill, fname, e));
                 continue;
             }
-            copy_skill_dir_recursive(&path, &sub_dest, domain, skill, errors);
+            copy_skill_dir_recursive(&path, &sub_dest, domain, all_domains, skill, errors);
         } else {
             if SKIP_FILES.contains(&fname.as_str()) { continue; }
             if fname.ends_with(".excalidraw") { continue; }
+
+            // Filename-based domain routing: a file whose stem matches a known
+            // domain is treated as scoped to that domain — copy it only when
+            // generating for that same domain, skip otherwise. Files whose stem
+            // doesn't match any domain are shared and always copied.
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            if !stem.is_empty() && stem != domain && all_domains.iter().any(|d| d == stem) {
+                continue;
+            }
+
             let dest_file = dest_dir.join(&fname);
 
             // Text files: do {{DOMAIN}} replacement. Binary files: raw copy.
@@ -356,6 +379,9 @@ pub fn val_generate_ai_package(
     let ai_tables_path = ai_path.join("tables");
     let ai_skills_path = ai_path.join("skills");
 
+    // Domain slugs used for filename-based reference filtering
+    let all_domains: Vec<String> = config.domains.iter().map(|d| d.domain.clone()).collect();
+
     let mut skills_copied: Vec<String> = Vec::new();
     let mut errors: Vec<String> = Vec::new();
 
@@ -401,7 +427,7 @@ pub fn val_generate_ai_package(
         }
 
         // Copy all additional files recursively (references/, assets/, scripts/, etc.)
-        copy_skill_dir_recursive(&skill_src_dir, &skill_dir, &domain, skill, &mut errors);
+        copy_skill_dir_recursive(&skill_src_dir, &skill_dir, &domain, &all_domains, skill, &mut errors);
     }
 
     // Ensure ai/ dir exists (ai_config.json is managed separately by val_save_domain_ai_config)
@@ -889,6 +915,62 @@ mod tests {
 
         let out = fs::read_to_string(ai_path.join("instructions.md")).unwrap();
         assert!(!out.contains("Custom Instructions"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn copy_flattens_matching_domain_and_skips_others() {
+        let dir = unique_tmp_dir("domains");
+        let src = dir.join("src");
+        let dest = dir.join("dest");
+        fs::create_dir_all(src.join("references/_domains/fave")).unwrap();
+        fs::create_dir_all(src.join("references/_domains/sengkang")).unwrap();
+        fs::write(src.join("references/shared.md"), "shared {{DOMAIN}}").unwrap();
+        fs::write(src.join("references/_domains/fave/fave-pos.md"), "fave {{DOMAIN}}").unwrap();
+        fs::write(src.join("references/_domains/sengkang/sk-pos.md"), "sk").unwrap();
+        fs::create_dir_all(&dest).unwrap();
+
+        let all = vec!["fave".to_string(), "sengkang".to_string()];
+        let mut errors: Vec<String> = Vec::new();
+        copy_skill_dir_recursive(&src, &dest, "fave", &all, "test-skill", &mut errors);
+
+        assert!(errors.is_empty(), "errors: {:?}", errors);
+        // shared file copied with {{DOMAIN}} replaced
+        let shared = fs::read_to_string(dest.join("references/shared.md")).unwrap();
+        assert_eq!(shared, "shared fave");
+        // fave reference flattened into references/, no nested _domains
+        let fave = fs::read_to_string(dest.join("references/fave-pos.md")).unwrap();
+        assert_eq!(fave, "fave fave");
+        assert!(!dest.join("references/_domains").exists());
+        // sengkang skipped entirely
+        assert!(!dest.join("references/sk-pos.md").exists());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn copy_filters_files_by_domain_stem() {
+        let dir = unique_tmp_dir("filename");
+        let src = dir.join("src");
+        let dest = dir.join("dest");
+        fs::create_dir_all(src.join("references")).unwrap();
+        fs::write(src.join("references/lag.json"), "{\"d\":\"lag\"}").unwrap();
+        fs::write(src.join("references/jlm.json"), "{\"d\":\"jlm\"}").unwrap();
+        fs::write(src.join("references/koi.json"), "{\"d\":\"koi\"}").unwrap();
+        fs::write(src.join("references/report-format.md"), "shared").unwrap();
+        fs::create_dir_all(&dest).unwrap();
+
+        let all = vec!["lag".to_string(), "jlm".to_string(), "koi".to_string()];
+        let mut errors: Vec<String> = Vec::new();
+        copy_skill_dir_recursive(&src, &dest, "lag", &all, "test-skill", &mut errors);
+
+        assert!(errors.is_empty(), "errors: {:?}", errors);
+        // Current domain file copied
+        assert!(dest.join("references/lag.json").exists());
+        // Other domains' files skipped
+        assert!(!dest.join("references/jlm.json").exists());
+        assert!(!dest.join("references/koi.json").exists());
+        // Non-domain-stem file treated as shared
+        assert!(dest.join("references/report-format.md").exists());
         fs::remove_dir_all(&dir).ok();
     }
 

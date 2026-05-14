@@ -1034,13 +1034,16 @@ export type Database = {
           source_system: string | null
           space: string | null
           suggested_name: string | null
+          owner: string | null
+          status: string | null
+          subcategory: string | null
           summary_full: string | null
           summary_short: string | null
           synced_at: string | null
           table_name: string | null
-          tags: string | null
+          tags: string[]
           updated_date: string | null
-          usage_status: string | null
+          verified: boolean
           widget_count: number | null
           workflow_count: number | null
         }
@@ -1082,14 +1085,17 @@ export type Database = {
           solution?: string | null
           source_system?: string | null
           space?: string | null
+          owner?: string | null
+          status?: string | null
+          subcategory?: string | null
           suggested_name?: string | null
           summary_full?: string | null
           summary_short?: string | null
           synced_at?: string | null
           table_name?: string | null
-          tags?: string | null
+          tags?: string[]
           updated_date?: string | null
-          usage_status?: string | null
+          verified?: boolean
           widget_count?: number | null
           workflow_count?: number | null
         }
@@ -1131,14 +1137,17 @@ export type Database = {
           solution?: string | null
           source_system?: string | null
           space?: string | null
+          owner?: string | null
+          status?: string | null
+          subcategory?: string | null
           suggested_name?: string | null
           summary_full?: string | null
           summary_short?: string | null
           synced_at?: string | null
           table_name?: string | null
-          tags?: string | null
+          tags?: string[]
           updated_date?: string | null
-          usage_status?: string | null
+          verified?: boolean
           widget_count?: number | null
           workflow_count?: number | null
         }
@@ -2543,7 +2552,6 @@ export type Database = {
           entities: string[]
           examples: Json
           first_seen_at: string
-          last_audited: string | null
           last_synced_at: string | null
           name: string
           notes: string | null
@@ -2567,7 +2575,6 @@ export type Database = {
           entities?: string[]
           examples?: Json
           first_seen_at?: string
-          last_audited?: string | null
           last_synced_at?: string | null
           name: string
           notes?: string | null
@@ -2591,7 +2598,6 @@ export type Database = {
           entities?: string[]
           examples?: Json
           first_seen_at?: string
-          last_audited?: string | null
           last_synced_at?: string | null
           name?: string
           notes?: string | null
@@ -4685,17 +4691,20 @@ export type Database = {
           has_demo: boolean
           has_examples: boolean
           has_guide: boolean
-          last_audited: string | null
           name: string
           needs_work: string | null
           outcome: string | null
           owner: string | null
           platform: string[]
           rating: number | null
+          data_category: string | null
+          data_sub_category: string | null
           skill_type: string
           slug: string
+          solution: string | null
           status: string
           subcategory: string | null
+          tags: string[]
           target: string
           updated_at: string
           verified: boolean
@@ -4718,17 +4727,20 @@ export type Database = {
           has_demo?: boolean
           has_examples?: boolean
           has_guide?: boolean
-          last_audited?: string | null
           name: string
           needs_work?: string | null
           outcome?: string | null
           owner?: string | null
           platform?: string[]
           rating?: number | null
+          data_category?: string | null
+          data_sub_category?: string | null
           skill_type?: string
           slug: string
+          solution?: string | null
           status?: string
           subcategory?: string | null
+          tags?: string[]
           target?: string
           updated_at?: string
           verified?: boolean
@@ -4751,17 +4763,20 @@ export type Database = {
           has_demo?: boolean
           has_examples?: boolean
           has_guide?: boolean
-          last_audited?: string | null
           name?: string
           needs_work?: string | null
           outcome?: string | null
           owner?: string | null
           platform?: string[]
           rating?: number | null
+          data_category?: string | null
+          data_sub_category?: string | null
           skill_type?: string
           slug?: string
+          solution?: string | null
           status?: string
           subcategory?: string | null
+          tags?: string[]
           target?: string
           updated_at?: string
           verified?: boolean

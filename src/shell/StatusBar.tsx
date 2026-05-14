@@ -15,6 +15,7 @@ import { matchRoutingRule } from "../lib/botRouting";
 import { cn } from "../lib/cn";
 import { Loader2, CheckCircle2, XCircle, X, Trash2, Sparkles, Code, ChevronDown, Wrench, Activity, Brain, StopCircle, Palette, Cat, MessageSquare } from "lucide-react";
 import { useMascotVisible } from "../components/mascot/useMascotVisible";
+import { JobsModal } from "../components/JobsModal";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useAppUpdate } from "../hooks/useAppUpdate";
@@ -114,27 +115,28 @@ export function StatusBar() {
   const { updateAvailable, version: updateVersion, body: updateBody, downloading, installed, progress, error: updateError, installUpdate } = useAppUpdate();
   const [showJobsPanel, setShowJobsPanel] = useState(false);
   const [showUpdatePreview, setShowUpdatePreview] = useState(false);
+  // Local expansion for non-Claude jobs that have a log[] history (Sync Tables,
+  // Refresh Drift etc.). Tracks at most one open job at a time.
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const updatePanelRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const { runs, expandedRunId, expandRun } = useClaudeRunStore();
   const [mascotVisible, setMascotVisible] = useMascotVisible();
 
-  // Close panels on outside click
+  // Close update preview on outside click. Jobs panel is now a centered
+  // modal that handles its own close on backdrop click.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setShowJobsPanel(false);
-      }
       if (updatePanelRef.current && !updatePanelRef.current.contains(e.target as Node)) {
         setShowUpdatePreview(false);
       }
     }
-    if (showJobsPanel || showUpdatePreview) {
+    if (showUpdatePreview) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [showJobsPanel, showUpdatePreview]);
+  }, [showUpdatePreview]);
 
   const hasJobs = recentJobs.length > 0;
   const hasRunning = runningJobs.length > 0;
@@ -232,8 +234,8 @@ export function StatusBar() {
               )}
             </button>
 
-            {/* Jobs Panel */}
-            {showJobsPanel && (
+            {/* Jobs popup is now a centered modal — see <JobsModal/> below. */}
+            {false && showJobsPanel && (
               <div className="absolute bottom-full right-0 mb-1 w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg overflow-hidden animate-modal-in">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-800">
                   <span className="font-medium text-zinc-900 dark:text-zinc-100">
@@ -255,18 +257,25 @@ export function StatusBar() {
                   ) : (
                     recentJobs.map((job) => {
                       const isClaudeRun = runs[job.id] != null;
+                      // Any job that recorded log entries can be expanded inline
+                      // to show the timestamped progress history.
+                      const hasLog = !!job.log && job.log.length > 0;
+                      const isExpanded = !isClaudeRun && expandedJobId === job.id;
                       return (
                       <div
                         key={job.id}
                         className={cn(
                           "px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
-                          isClaudeRun && "cursor-pointer",
-                          isClaudeRun && expandedRunId === job.id && "bg-purple-50/50 dark:bg-purple-900/10"
+                          (isClaudeRun || hasLog) && "cursor-pointer",
+                          isClaudeRun && expandedRunId === job.id && "bg-purple-50/50 dark:bg-purple-900/10",
+                          isExpanded && "bg-zinc-50 dark:bg-zinc-800/30",
                         )}
                         onClick={() => {
                           if (isClaudeRun) {
                             expandRun(expandedRunId === job.id ? null : job.id);
                             setShowJobsPanel(false);
+                          } else if (hasLog) {
+                            setExpandedJobId((prev) => (prev === job.id ? null : job.id));
                           }
                         }}
                       >
@@ -343,6 +352,35 @@ export function StatusBar() {
                           <div className="mt-1 pl-6 flex items-center gap-1 text-[10px] text-purple-500">
                             <Code size={10} />
                             <span>Click to {expandedRunId === job.id ? "collapse" : "expand"} output</span>
+                          </div>
+                        )}
+                        {!isClaudeRun && hasLog && !isExpanded && (
+                          <div className="mt-1 pl-6 text-[10px] text-zinc-400">
+                            Click for {job.log!.length} step{job.log!.length === 1 ? "" : "s"}
+                          </div>
+                        )}
+                        {isExpanded && (
+                          <div className="mt-2 pl-6 pr-1 max-h-48 overflow-y-auto rounded bg-zinc-100 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800">
+                            <ul className="text-[11px] font-mono leading-snug py-1">
+                              {job.log!.map((entry, idx) => (
+                                <li
+                                  key={idx}
+                                  className={cn(
+                                    "px-2 py-0.5 flex gap-2",
+                                    entry.kind === "error" && "text-red-600 dark:text-red-400",
+                                    entry.kind === "warn" && "text-amber-600 dark:text-amber-400",
+                                    entry.kind !== "error" && entry.kind !== "warn" && "text-zinc-600 dark:text-zinc-300",
+                                  )}
+                                >
+                                  <span className="text-zinc-400 dark:text-zinc-500 w-12 text-right flex-shrink-0">
+                                    +{(entry.t / 1000).toFixed(1)}s
+                                  </span>
+                                  <span className="break-words whitespace-pre-wrap">
+                                    {entry.message}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         )}
                       </div>
@@ -502,6 +540,11 @@ export function StatusBar() {
           </div>
         );
       })()}
+
+      {/* Centered Jobs modal — opens when the user clicks the Jobs button
+          in the status bar. Replaces the old narrow dropdown for proper
+          progress + log visibility. */}
+      {showJobsPanel && <JobsModal onClose={() => setShowJobsPanel(false)} />}
     </div>
   );
 }

@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { useFileTree, useReadFile, useWriteFile, type TreeNode } from "../hooks/useFiles";
 import { cn } from "../lib/cn";
-import { toSGTDateString } from "../lib/date";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 import { ExcalidrawViewer } from "../modules/library/viewers/ExcalidrawViewer";
 import { IconButton } from "../components/ui";
@@ -63,12 +62,13 @@ export function BotSkillInlineView({ skillPath, skillName, title, usage, onBack 
   const registry = registryQuery.data;
   const regEntry = registry?.skills[skillName];
   const currentStatus: SkillStatus = regEntry?.status ?? "active";
-  const lastRevised = regEntry?.last_audited ?? null;
+  // last_audited was dropped (Layer 1 metadata alignment); skills.updated_at
+  // is the implicit "last revised" timestamp now.
+  const lastRevised: string | null = null;
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const handleStatusChange = (newStatus: SkillStatus) => {
-    const today = toSGTDateString();
-    updateSkill.mutate({ slug: skillName, updates: { status: newStatus, last_audited: today } });
+    updateSkill.mutate({ slug: skillName, updates: { status: newStatus } });
     setShowStatusMenu(false);
   };
 

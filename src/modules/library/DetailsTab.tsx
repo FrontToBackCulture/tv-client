@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { formatDateFull as formatDate } from "../../lib/date";
-import { useClassificationStore } from "../../stores/classificationStore";
+import { useClassificationMap } from "../../hooks/useClassificationValues";
 import type { TableDetails, TableAnalysis, GridRowData } from "./tableDetailTypes";
 import { TagsInput, ComboBox } from "./detailsTabInputs";
 
@@ -54,11 +54,13 @@ export function DetailsTab({
   isDescribing?: boolean;
   onClassify?: () => void;
   isClassifying?: boolean;
-  onFieldChange?: (field: string, value: string | number | null) => void;
+  // Accepts string[] for array-typed columns like tags (Layer 1 metadata
+  // alignment changed domain_artifacts.tags from text → text[]).
+  onFieldChange?: (field: string, value: string | string[] | number | null) => void;
   onReloadFromFile?: () => void;
   onSyncToGrid?: () => void;
 }) {
-  const classificationValues = useClassificationStore((s) => s.values);
+  const classificationValues = useClassificationMap();
   const CATEGORY_OPTIONS = classificationValues.dataCategory;
   const SUB_CATEGORY_OPTIONS = classificationValues.dataSubCategory;
   const TAG_OPTIONS = classificationValues.tags;
@@ -408,8 +410,21 @@ export function DetailsTab({
             <div>
               <label className="text-xs text-zinc-500 block mb-1">Tags</label>
               <TagsInput
-                value={rowData?.tags ?? analysis?.tags ?? ""}
-                onChange={(newTags) => onFieldChange("tags", newTags || null)}
+                // rowData.tags is text[] post-Layer-1; analysis.tags may
+                // still be a comma string. Fall back through both shapes.
+                value={
+                  Array.isArray(rowData?.tags)
+                    ? rowData.tags.join(", ")
+                    : (rowData?.tags as string | null | undefined) ?? analysis?.tags ?? ""
+                }
+                onChange={(newTags) =>
+                  onFieldChange(
+                    "tags",
+                    newTags
+                      ? newTags.split(",").map((t) => t.trim()).filter(Boolean)
+                      : null,
+                  )
+                }
                 suggestions={TAG_OPTIONS}
               />
             </div>

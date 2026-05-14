@@ -3,29 +3,114 @@
 import { invoke } from "@tauri-apps/api/core";
 import { buildDomainUrl } from "../../lib/domainUrl";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
-import type { ReviewResourceType, ReviewRow } from "./reviewTypes";
+import type { ArtifactDeployment, ReviewResourceType, ReviewRow } from "./reviewTypes";
 import { FOLDER_PREFIX } from "./reviewTypes";
 
+/** Normalize a classification value to the canonical lowercase-hyphenated form
+ *  used by lookup_values (Layer 2) and skills.data_types. Filesystem analysis
+ *  files often have legacy capitalized values like "Receipt" or "Outlet
+ *  Mapping"; this aligns them with the dropdown vocabulary on read so chips
+ *  match exactly. Returns null for empty/whitespace input.
+ *
+ *  Same regex/algorithm as the SQL migration `normalize_data_type_to_skills_vocabulary`. */
+function normalizeClassification(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  return trimmed
+    .toLowerCase()
+    .replace(/\s+/g, "-")    // whitespace runs → single hyphen
+    .replace(/-?\/+-?/g, "-") // strip slashes (with optional surrounding hyphens)
+    .replace(/-+/g, "-")     // collapse multiple hyphens
+    .replace(/^-+|-+$/g, ""); // trim leading/trailing hyphens
+}
+
 /** Load review rows from filesystem folders for any resource type.
- *  `light` mode skips expensive per-file reads (stale checks, analysis) — useful for cross-domain aggregation. */
+ *  `light` mode skips expensive per-file reads (stale checks, analysis) — useful for cross-domain aggregation.
+ *  `masterDomain` triggers a deployments join — set when viewing this domain *as the master* (e.g., the Lab module).
+ */
 export async function loadReviewData(
   folderPath: string,
   resourceType: ReviewResourceType,
   domainSlug?: string | null,
-  opts?: { light?: boolean },
+  opts?: { light?: boolean; masterDomain?: string | null },
 ): Promise<ReviewRow[]> {
   const light = opts?.light ?? false;
+  let rows: ReviewRow[];
   if (resourceType === "table") {
-    return loadTablesAsReviewRows(folderPath, light);
+    rows = await loadTablesAsReviewRows(folderPath, light);
+  } else {
+    rows = await loadArtifactsAsReviewRows(folderPath, resourceType, light);
+    // Enrich dashboards with GA4 analytics from Supabase (skip in light mode)
+    if (!light && resourceType === "dashboard" && domainSlug && isSupabaseConfigured) {
+      rows = await enrichDashboardsWithAnalytics(rows, domainSlug);
+    }
   }
-  const rows = await loadArtifactsAsReviewRows(folderPath, resourceType, light);
 
-  // Enrich dashboards with GA4 analytics from Supabase (skip in light mode)
-  if (!light && resourceType === "dashboard" && domainSlug && isSupabaseConfigured) {
-    return enrichDashboardsWithAnalytics(rows, domainSlug);
+  if (opts?.masterDomain && isSupabaseConfigured) {
+    rows = await enrichWithDeployments(rows, resourceType, opts.masterDomain);
   }
 
   return rows;
+}
+
+/** Join artifact_deployments onto rows by master_resource_id == row.id.
+ *  Paginates to escape PostgREST's default 1000-row cap (some master domains
+ *  have ~22k query deployments).
+ */
+async function enrichWithDeployments(
+  rows: ReviewRow[],
+  resourceType: ReviewResourceType,
+  masterDomain: string,
+): Promise<ReviewRow[]> {
+  if (rows.length === 0) return rows;
+
+  const PAGE = 1000;
+  const byId = new Map<string, ArtifactDeployment[]>();
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("artifact_deployments")
+      .select("master_resource_id, target_domain, drift_status, last_deployed_at, drift_added, drift_removed, drift_changed")
+      .eq("master_domain", masterDomain)
+      .eq("resource_type", resourceType)
+      .order("master_resource_id", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+
+    if (error) {
+      console.warn("[reviewLoader] Failed to fetch deployments:", error);
+      return rows;
+    }
+    if (!data || data.length === 0) break;
+
+    for (const d of data) {
+      const dep: ArtifactDeployment = {
+        target_domain: d.target_domain,
+        drift_status: (d.drift_status ?? "unknown") as ArtifactDeployment["drift_status"],
+        last_deployed_at: d.last_deployed_at,
+        drift_added: d.drift_added ?? null,
+        drift_removed: d.drift_removed ?? null,
+        drift_changed: d.drift_changed ?? null,
+      };
+      // Index under both the raw id and the de-prefixed id so the join lands
+      // even if a writer slips and stores `workflow_3004` instead of `3004`.
+      const raw = String(d.master_resource_id);
+      const stripped = raw.replace(/^(workflow|query|dashboard|table)_/, "");
+      for (const key of stripped === raw ? [raw] : [raw, stripped]) {
+        const list = byId.get(key) ?? [];
+        list.push(dep);
+        byId.set(key, list);
+      }
+    }
+
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  return rows.map((r) => {
+    const deployments = byId.get(String(r.id));
+    return deployments?.length ? { ...r, deployments } : r;
+  });
 }
 
 // ─── Table loading ───────────────────────────────────────────────────────────
@@ -68,14 +153,20 @@ function makeTableRow(
     folderPath: path,
     isStale: false,
     // Classification
-    dataType: (data.dataType as string | null) || null,
+    dataType: normalizeClassification(data.dataType as string | null),
     dataCategory: (data.dataCategory as string | null) || null,
     dataSubCategory: (data.dataSubCategory as string | null) || null,
     usageStatus: (data.usageStatus as string | null) || null,
     action: (data.action as string | null) || null,
     dataSource: (data.dataSource as string | null) || null,
     sourceSystem: (data.sourceSystem as string | null) || null,
-    tags: (data.tags as string | null) || null,
+    // tags is text[] post-Layer-1 alignment. Tolerate legacy comma strings
+    // from any older index files that haven't been re-synced.
+    tags: Array.isArray(data.tags)
+      ? (data.tags as string[])
+      : typeof data.tags === "string" && data.tags
+      ? (data.tags as string).split(",").map((s) => s.trim()).filter(Boolean)
+      : null,
     suggestedName: (data.suggestedName as string | null) || null,
     summaryShort: (data.summaryShort as string | null) || null,
     summaryFull: (data.summaryFull as string | null) || null,
@@ -105,8 +196,12 @@ function makeTableRow(
     lastAnalyzeAt: (data.lastAnalyzeAt as string | null) || null,
     lastOverviewAt: (data.lastOverviewAt as string | null) || null,
     space: (data.space as string | null) || null,
+    // Canonical metadata (loaded from disk if present)
+    category: (data.category as string | null) || null,
+    subcategory: (data.subcategory as string | null) || null,
+    owner: (data.owner as string | null) || null,
+    verified: (data.verified as boolean | null) ?? null,
     // Non-table fields
-    category: null,
     tableName: null,
     fieldCount: null,
     widgetCount: null,
@@ -255,10 +350,14 @@ async function scanTableDirectories(dataModelsPath: string): Promise<ReviewRow[]
         const analysisContent = await invoke<string>("read_file", { path: `${dir.path}/definition_analysis.json` });
         const analysis = JSON.parse(analysisContent);
         data.suggestedName = analysis.suggestedName || null;
-        data.dataType = analysis.dataType || analysis.classification?.dataType || null;
+        data.dataType = normalizeClassification(analysis.dataType || analysis.classification?.dataType);
         data.summaryShort = analysis.summary?.short || null;
         data.summaryFull = analysis.summary?.full || null;
         data.lastAnalyzeAt = analysis.meta?.analyzedAt || null;
+        // Canonical (Layer 1)
+        data.category = analysis.category || null;
+        data.subcategory = analysis.subcategory || null;
+        // Artifact-specific data classification
         data.dataCategory = analysis.dataCategory || null;
         data.dataSubCategory = analysis.dataSubCategory || null;
         data.dataSource = analysis.dataSource || null;
@@ -349,8 +448,10 @@ async function loadArtifactsAsReviewRows(
       rowCount: null, tableType: null, daysSinceCreated: null, daysSinceUpdate: null,
       workflowCount: null, scheduledWorkflowCount: null, queryCount: null, dashboardCount: null,
       lastSampleAt: null, lastDetailsAt: null, lastAnalyzeAt: null, lastOverviewAt: null, space: null,
+      // Canonical metadata (loaded from definition_analysis.json below)
+      category: null, subcategory: null, owner: null, verified: null,
       // Artifact-specific (null)
-      category: null, tableName: null, fieldCount: null,
+      tableName: null, fieldCount: null,
       widgetCount: null, creatorName: null,
       isScheduled: null, cronExpression: null, pluginCount: null, description: null,
       // GA4 Analytics
@@ -399,14 +500,30 @@ async function loadArtifactsAsReviewRows(
       const analysisContent = await invoke<string>("read_file", { path: `${dir.path}/definition_analysis.json` });
       const analysis = JSON.parse(analysisContent);
 
-      row.dataType = analysis.classification?.dataType || analysis.dataType || null;
+      row.dataType = normalizeClassification(analysis.classification?.dataType || analysis.dataType);
+      // Canonical (Layer 1) — preferred source
+      row.category = analysis.category || null;
+      row.subcategory = analysis.subcategory || null;
+      if (analysis.owner !== undefined) row.owner = analysis.owner || null;
+      if (analysis.verified !== undefined) row.verified = !!analysis.verified;
+      // Artifact-specific data classification
       row.dataCategory = analysis.dataCategory || null;
       row.dataSubCategory = analysis.dataSubCategory || null;
       row.usageStatus = analysis.usageStatus || null;
       row.action = analysis.action || null;
       row.dataSource = analysis.dataSource || null;
       row.sourceSystem = analysis.sourceSystem || null;
-      row.tags = analysis.tags || null;
+      // tags: accept legacy string ("a, b, c") or array; row.tags is string[].
+      if (Array.isArray(analysis.tags)) {
+        row.tags = analysis.tags as string[];
+      } else if (typeof analysis.tags === "string" && analysis.tags) {
+        row.tags = (analysis.tags as string)
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+      } else {
+        row.tags = null;
+      }
       row.suggestedName = analysis.suggestedName || null;
       row.summaryShort = analysis.summary?.short || null;
       row.summaryFull = analysis.summary?.full || null;

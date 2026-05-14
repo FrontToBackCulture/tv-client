@@ -544,6 +544,108 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
     showToast("Video generation coming soon", "success");
   };
 
+  // Distill .md → cinematic prompt via Anthropic, then write a .seedance.json sidecar.
+  const handleCreateSeedanceConfig = async () => {
+    if (isGenerating) return;
+
+    const jobId = `seedance-config-${Date.now()}`;
+    const jobName = `Seedance config: ${filename}`;
+
+    try {
+      setIsGenerating(true);
+      addJob({
+        id: jobId,
+        name: jobName,
+        status: "running",
+        message: "Distilling markdown into a video prompt...",
+      });
+
+      const prompt = await invoke<string>("seedance_distill_md", { mdPath: path });
+
+      updateJob(jobId, { message: "Writing .seedance.json..." });
+
+      const configPath = await invoke<string>("seedance_create_config", {
+        mdPath: path,
+        prompt,
+      });
+
+      const configFilename = configPath.split("/").pop();
+      updateJob(jobId, {
+        status: "completed",
+        message: `Created: ${configFilename}`,
+      });
+      showToast(`Created ${configFilename}. Edit and click Generate Video.`, "success");
+    } catch (err) {
+      updateJob(jobId, { status: "failed", message: formatError(err) });
+      showToast(`Failed to create config: ${formatError(err)}`, "error");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Submit .seedance.json to OpenRouter, poll until ready, download the video next to the config.
+  const handleGenerateSeedanceVideo = async () => {
+    if (isGenerating) return;
+
+    const jobId = `seedance-video-${Date.now()}`;
+    const jobName = `Video: ${filename}`;
+    const POLL_INTERVAL_MS = 5000;
+    const MAX_POLLS = 120; // ~10 min cap
+
+    try {
+      setIsGenerating(true);
+      addJob({
+        id: jobId,
+        name: jobName,
+        status: "running",
+        message: "Submitting to OpenRouter...",
+      });
+
+      const submitted = await invoke<{ id: string; status: string }>("seedance_submit_video", {
+        configPath: path,
+      });
+
+      updateJob(jobId, { message: `Job ${submitted.id.slice(0, 8)}: ${submitted.status}` });
+
+      let videoUrl: string | null = null;
+      for (let i = 0; i < MAX_POLLS; i++) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        const status = await invoke<{ status: string; unsigned_urls: string[]; error?: string | null }>(
+          "seedance_poll_video",
+          { jobId: submitted.id },
+        );
+        updateJob(jobId, { message: `Status: ${status.status} (${i + 1}/${MAX_POLLS})` });
+
+        if (status.status === "completed") {
+          videoUrl = status.unsigned_urls[0] ?? null;
+          break;
+        }
+        if (status.status === "failed" || status.status === "cancelled" || status.status === "expired") {
+          throw new Error(status.error || `Job ${status.status}`);
+        }
+      }
+
+      if (!videoUrl) {
+        throw new Error("Timed out waiting for video");
+      }
+
+      updateJob(jobId, { message: "Downloading video..." });
+      const savedPath = await invoke<string>("seedance_download_video", {
+        videoUrl,
+        configPath: path,
+      });
+
+      const savedFilename = savedPath.split("/").pop();
+      updateJob(jobId, { status: "completed", message: `Saved: ${savedFilename}` });
+      showToast(`Video saved: ${savedFilename}`, "success");
+    } catch (err) {
+      updateJob(jobId, { status: "failed", message: formatError(err) });
+      showToast(`Video generation failed: ${formatError(err)}`, "error");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Handle PDF export for order forms, proposals, and HTML files
   const handleExportPdf = async () => {
     if (isGenerating) return;
@@ -688,11 +790,15 @@ export function FileViewer({ path, basePath, onNavigate }: FileViewerProps) {
             onGenerateImageWithLogo={handleGenerateImageWithLogo}
             onGenerateDeck={handleGenerateDeck}
             onGenerateVideo={handleGenerateVideo}
+            onCreateSeedanceConfig={handleCreateSeedanceConfig}
+            onGenerateSeedanceVideo={handleGenerateSeedanceVideo}
             onExportPdf={handleExportPdf}
             onPublishIntercom={() => setIntercomModalOpen(true)}
             onPublishPortal={() => setPortalModalOpen(true)}
             isGeneratingImage={isGenerating}
             isGeneratingDeck={isGenerating}
+            isCreatingSeedanceConfig={isGenerating}
+            isGeneratingSeedanceVideo={isGenerating}
             isExportingPdf={isGenerating}
           />
         </div>

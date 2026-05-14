@@ -2,6 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { supabase } from "../../lib/supabase";
+import { skillKeys } from "../skills/keys";
 
 // ============================================================
 // Types
@@ -78,16 +80,64 @@ export function useGenerateAiPackage() {
   });
 }
 
-/** Save per-domain AI skill configuration */
+/**
+ * Save per-domain AI skill configuration. Writes to Supabase skills.domain
+ * (the source of truth). The on-disk ai_config.json is regenerated as a
+ * derived artifact during Generate Package.
+ */
 export function useSaveDomainAiConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (params: { domain: string; skills: string[] }) =>
-      invoke<void>("val_save_domain_ai_config", {
-        domain: params.domain,
-        skills: params.skills,
-      }),
-    onSuccess: () => {
+    mutationFn: async ({
+      domain,
+      skills,
+    }: {
+      domain: string;
+      skills: string[];
+    }): Promise<{ added: string[]; removed: string[] }> => {
+      const { data: currentRows, error: readErr } = await supabase
+        .from("skills")
+        .select("slug, domain")
+        .contains("domain", [domain]);
+      if (readErr) throw new Error(`Failed to read current assignments: ${readErr.message}`);
+
+      const current = new Map<string, string[]>();
+      for (const r of currentRows ?? []) current.set(r.slug, r.domain ?? []);
+      const desired = new Set(skills);
+
+      const toAdd = [...desired].filter((s) => !current.has(s));
+      const toRemove = [...current.keys()].filter((s) => !desired.has(s));
+
+      for (const slug of toAdd) {
+        const { data: row, error } = await supabase
+          .from("skills")
+          .select("domain")
+          .eq("slug", slug)
+          .maybeSingle();
+        if (error) throw new Error(`Failed to read skill ${slug}: ${error.message}`);
+        if (!row) continue;
+        const next = Array.from(new Set([...(row.domain ?? []), domain])).sort();
+        const { error: updErr } = await supabase
+          .from("skills")
+          .update({ domain: next })
+          .eq("slug", slug);
+        if (updErr) throw new Error(`Failed to assign ${slug} → ${domain}: ${updErr.message}`);
+      }
+
+      for (const slug of toRemove) {
+        const next = (current.get(slug) ?? []).filter((d) => d !== domain);
+        const { error: updErr } = await supabase
+          .from("skills")
+          .update({ domain: next })
+          .eq("slug", slug);
+        if (updErr) throw new Error(`Failed to unassign ${slug} from ${domain}: ${updErr.message}`);
+      }
+
+      return { added: toAdd, removed: toRemove };
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: skillKeys.byDomain(vars.domain) });
+      qc.invalidateQueries({ queryKey: skillKeys.all });
       qc.invalidateQueries({ queryKey: ["domain-ai-status"] });
     },
   });

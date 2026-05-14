@@ -175,6 +175,15 @@ export function useValImportCredentials() {
   });
 }
 
+/** Export VAL credentials (val_email_* / val_password_*) to a JSON file
+ *  the Import flow can re-ingest. Returns the number of domains exported. */
+export function useValExportCredentials() {
+  return useMutation({
+    mutationFn: (filePath: string) =>
+      invoke<number>("settings_export_val_credentials", { filePath }),
+  });
+}
+
 /** Load full val-sync config */
 export function useValSyncConfig() {
   return useQuery({

@@ -47,30 +47,45 @@ export function useSkillActivityLog(slug: string | undefined) {
   });
 }
 
-/** Fetch latest activity per skill (for grid columns) */
+/**
+ * Latest change per skill, from `skill_changes` (the table the
+ * `trg_skill_changes` trigger writes to on every UPDATE — including
+ * inline UI edits). The legacy `skill_activity` table is only fed by
+ * external sync tools, which is why a previous version of this hook
+ * left the "Last Changed" grid column empty for inline edits.
+ *
+ * Pagination loops past the PostgREST 1k cap because skill_changes
+ * grows unbounded with edit volume.
+ */
 export function useSkillActivitySummaries() {
   return useQuery({
     queryKey: skillActivityKeys.summaries(),
     queryFn: async (): Promise<Record<string, SkillActivitySummary>> => {
-      // Fetch all activities ordered by recency, then aggregate client-side
-      const { data, error } = await supabase
-        .from("skill_activity")
-        .select("skill_slug, actor, created_at")
-        .order("created_at", { ascending: false });
-
-      if (error) throw new Error(`Failed to fetch skill activity summaries: ${error.message}`);
-
       const map: Record<string, SkillActivitySummary> = {};
-      for (const row of data ?? []) {
-        if (!map[row.skill_slug]) {
-          map[row.skill_slug] = {
-            lastChanged: row.created_at,
-            lastActor: row.actor,
-            changeCount: 1,
-          };
-        } else {
-          map[row.skill_slug].changeCount++;
+      const PAGE = 1000;
+      let offset = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("skill_changes")
+          .select("skill_slug, changed_by, changed_at")
+          .order("changed_at", { ascending: false })
+          .range(offset, offset + PAGE - 1);
+        if (error) throw new Error(`Failed to fetch skill changes summaries: ${error.message}`);
+        if (!data || data.length === 0) break;
+        for (const row of data) {
+          const existing = map[row.skill_slug];
+          if (!existing) {
+            map[row.skill_slug] = {
+              lastChanged: row.changed_at,
+              lastActor: row.changed_by,
+              changeCount: 1,
+            };
+          } else {
+            existing.changeCount++;
+          }
         }
+        if (data.length < PAGE) break;
+        offset += PAGE;
       }
       return map;
     },

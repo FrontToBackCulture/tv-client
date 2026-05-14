@@ -37,7 +37,7 @@ import {
   type S3FileStatus,
 } from "../../hooks/val-sync";
 import { useSkillCheckAll, type SkillCategory } from "../skills/useSkillRegistry";
-import { useSkills } from "../../hooks/skills/useSkills";
+import { useSkills, useDomainSkills } from "../../hooks/skills/useSkills";
 import { SkillAssignmentGrid } from "../../components/SkillAssignmentGrid";
 import { DriftDiffModal, DriftBadge } from "../../components/DriftDiffModal";
 import { useQueryClient } from "@tanstack/react-query";
@@ -111,13 +111,12 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const skillsPath = `${aiPath}/skills`;
   const instructionsPath = `${aiPath}/instructions.md`;
   const customPath = `${aiPath}/custom.md`;
-  const configPath = `${aiPath}/ai_config.json`;
 
   const aiDir = useListDirectory(aiPath);
   const skillsDir = useListDirectory(skillsPath);
   const instructionsFile = useReadFile(instructionsPath);
   const customFile = useReadFile(customPath);
-  const configFile = useReadFile(configPath);
+  const domainSkillsQuery = useDomainSkills(domainName);
 
   const generateMutation = useGenerateAiPackage();
   const saveConfigMutation = useSaveDomainAiConfig();
@@ -125,14 +124,8 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
   const s3Status = useS3AiStatus(domainName, globalPath);
 
   const configuredSkills = useMemo(() => {
-    if (!configFile.data) return [] as string[];
-    try {
-      const parsed = JSON.parse(configFile.data);
-      return ((parsed.skills ?? []) as string[]).filter((s) => AVAILABLE_AI_SKILLS.includes(s));
-    } catch {
-      return [] as string[];
-    }
-  }, [configFile.data, AVAILABLE_AI_SKILLS]);
+    return (domainSkillsQuery.data ?? []).filter((s) => AVAILABLE_AI_SKILLS.includes(s));
+  }, [domainSkillsQuery.data, AVAILABLE_AI_SKILLS]);
 
   const [localSkills, setLocalSkills] = useState<string[] | null>(null);
   const selectedSkills = localSkills ?? configuredSkills;
@@ -160,9 +153,9 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
     if (!centralSkillsPath) return;
     generateMutation.mutate(
       { domain: domainName, skillsPath: centralSkillsPath, skills: selectedSkills },
-      { onSuccess: () => { configFile.refetch(); skillsDir.refetch(); instructionsFile.refetch(); customFile.refetch(); aiDir.refetch(); } }
+      { onSuccess: () => { skillsDir.refetch(); instructionsFile.refetch(); customFile.refetch(); aiDir.refetch(); } }
     );
-  }, [domainName, centralSkillsPath, selectedSkills, generateMutation, configFile, skillsDir, instructionsFile, customFile, aiDir]);
+  }, [domainName, centralSkillsPath, selectedSkills, generateMutation, skillsDir, instructionsFile, customFile, aiDir]);
 
   const locallyGeneratedSlugs = useMemo(() => {
     const set = new Set<string>();
@@ -258,7 +251,7 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
     s3Status.isFetching ||
     instructionsFile.isFetching ||
     customFile.isFetching ||
-    configFile.isFetching ||
+    domainSkillsQuery.isFetching ||
     skillsDir.isFetching ||
     aiDir.isFetching;
 
@@ -266,12 +259,12 @@ export function DomainAiTab({ aiPath, domainName, globalPath }: DomainAiTabProps
     s3Status.refetch();
     instructionsFile.refetch();
     customFile.refetch();
-    configFile.refetch();
+    domainSkillsQuery.refetch();
     skillsDir.refetch();
     aiDir.refetch();
     queryClient.invalidateQueries({ queryKey: ["file"] });
     queryClient.invalidateQueries({ queryKey: ["directory"] });
-  }, [s3Status, instructionsFile, customFile, configFile, skillsDir, aiDir, queryClient]);
+  }, [s3Status, instructionsFile, customFile, domainSkillsQuery, skillsDir, aiDir, queryClient]);
 
   if (aiDir.isLoading) {
     return <SectionLoading className="py-12" />;

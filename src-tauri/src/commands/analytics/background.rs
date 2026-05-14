@@ -28,8 +28,10 @@ pub fn start_background_sync(app_handle: tauri::AppHandle) {
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 
         loop {
-            // Only attempt if authenticated
-            if auth::load_tokens().is_some() {
+            // Gated by user toggle (Settings → Background Sync). Default: off.
+            let sync_enabled = settings::is_bg_sync_enabled(settings::KEY_BG_SYNC_GA4);
+
+            if sync_enabled && auth::load_tokens().is_some() {
                 let workspaces = settings::get_registered_workspaces();
                 let targets: Vec<Option<String>> = if workspaces.is_empty() {
                     vec![None] // Legacy single-workspace fallback

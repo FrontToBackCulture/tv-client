@@ -34,7 +34,7 @@ const allModules: ModuleInfo[] = [
   { id: "gallery", label: "Gallery", description: "Media gallery" },
   { id: "portal", label: "Portal", description: "Client portal management" },
   { id: "public-data", label: "Public Data", description: "Public data management" },
-  { id: "skills", label: "Skills", description: "Skill registry, catalog, and prompt builder" },
+  { id: "lab", label: "Lab", description: "Master view of skills, tables, queries, workflows, and dashboards" },
   { id: "product", label: "Product", description: "Product documentation" },
   { id: "scheduler", label: "Scheduler", description: "Task scheduler" },
   { id: "repos", label: "Repos", description: "Repository management" },
@@ -84,7 +84,7 @@ function MemberAvatar({ member }: { member: TeamMember }) {
   );
 }
 
-const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "domains", "skills"];
+const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "domains", "lab"];
 
 function MemberModuleToggles({
   login,

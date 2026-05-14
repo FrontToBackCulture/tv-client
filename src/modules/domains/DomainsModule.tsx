@@ -279,8 +279,8 @@ export function DomainsModule() {
         tabs={<>
           <ViewTab label="Overview" icon={Globe} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} data-help-id="domains-tab-overview" />
           <ViewTab label="Data Models" icon={Database} active={activeTab === "data-models"} onClick={() => setActiveTab("data-models")} data-help-id="domains-tab-data-models" />
-          <ViewTab label="Queries" icon={Search} active={activeTab === "queries"} onClick={() => setActiveTab("queries")} data-help-id="domains-tab-queries" />
           <ViewTab label="Workflows" icon={Workflow} active={activeTab === "workflows"} onClick={() => setActiveTab("workflows")} data-help-id="domains-tab-workflows" />
+          <ViewTab label="Queries" icon={Search} active={activeTab === "queries"} onClick={() => setActiveTab("queries")} data-help-id="domains-tab-queries" />
           <ViewTab label="Dashboards" icon={BarChart3} active={activeTab === "dashboards"} onClick={() => setActiveTab("dashboards")} data-help-id="domains-tab-dashboards" />
           <ViewTab label="Drive" icon={HardDrive} active={activeTab === "drive"} onClick={() => setActiveTab("drive")} data-help-id="domains-tab-drive" />
           <ViewTab label="Reports" icon={FileText} active={activeTab === "reports"} onClick={() => setActiveTab("reports")} data-help-id="domains-tab-reports" />

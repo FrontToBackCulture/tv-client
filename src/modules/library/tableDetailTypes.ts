@@ -14,7 +14,7 @@ export interface GridRowData {
   suggestedName: string | null;
   summaryShort: string | null;
   summaryFull: string | null;
-  tags: string | null;
+  tags: string[] | null;
   sourceSystem: string | null;
 }
 
@@ -24,7 +24,7 @@ export interface TableDetailPreviewProps {
   rowData?: GridRowData | null;
   onClose: () => void;
   onNavigate?: (path: string) => void;
-  onFieldChange?: (field: string, value: string | number | null) => void;
+  onFieldChange?: (field: string, value: string | string[] | number | null) => void;
   onSaveBeforeGenerate?: () => Promise<void>;
   onSyncToGrid?: () => void;
 }

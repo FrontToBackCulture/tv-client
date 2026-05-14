@@ -1,18 +1,20 @@
 // src/modules/product/CategoryLibraryPanel.tsx
 // Editable panel for managing classification values used across data models.
-// Values persist to localStorage via the classification store.
+// Values persist to Supabase `lookup_values` (Layer 2 — single source of truth).
 // Usage counts computed by scanning overview.md / definition_analysis.json per domain.
 
 import { useState, useRef, useMemo } from "react";
-import { Database, Tag, Folder, Activity, CheckCircle, Server, X, Plus, RotateCcw, Search } from "lucide-react";
+import { Database, Tag, Folder, Activity, CheckCircle, Server, X, Plus, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/cn";
 import { Button, IconButton } from "../../components/ui";
+import { type ClassificationField } from "../../stores/classificationStore";
 import {
-  useClassificationStore,
-  type ClassificationField,
-} from "../../stores/classificationStore";
+  useClassificationMap,
+  useAddClassificationValue,
+  useRemoveClassificationValue,
+} from "../../hooks/useClassificationValues";
 import { useValDomains } from "../../hooks/val-sync";
 
 // ---------------------------------------------------------------------------
@@ -197,7 +199,13 @@ export function CategoryLibraryPanel() {
   const [sortBy, setSortBy] = useState<"name" | "count">("name");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { values, addValue, removeValue, resetField } = useClassificationStore();
+  const values = useClassificationMap();
+  const addMutation = useAddClassificationValue();
+  const removeMutation = useRemoveClassificationValue();
+  const addValue = (field: ClassificationField, value: string) =>
+    addMutation.mutate({ field, value });
+  const removeValue = (field: ClassificationField, value: string) =>
+    removeMutation.mutate({ field, value });
   const { data: countsData, isLoading: countsLoading } = useClassificationCounts();
 
   const activeTab = TAB_CONFIG.find((t) => t.id === activeTabId) ?? TAB_CONFIG[0];
@@ -255,14 +263,6 @@ export function CategoryLibraryPanel() {
             Edit classification values used in data model dropdowns
           </p>
         </div>
-        <Button
-          onClick={() => resetField(activeTab.field)}
-          variant="ghost"
-          icon={RotateCcw}
-          title={`Reset ${activeTab.label} to defaults`}
-        >
-          Reset
-        </Button>
       </div>
 
       {/* Tabs */}

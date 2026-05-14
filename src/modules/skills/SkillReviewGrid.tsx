@@ -20,6 +20,7 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { formatError } from "../../lib/formatError";
 import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
+import { FacetCheckboxFilter } from "../../components/ui/FacetCheckboxFilter";
 import {
   Search,
   Download,
@@ -56,7 +57,9 @@ import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
 import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
 import { invoke } from "@tauri-apps/api/core";
-import { useSkillInit, useSkillExamples } from "./useSkillRegistry";
+import { useSkillInit, useSkillExamples, useSkillCheckAll } from "./useSkillRegistry";
+import { usePrimaryKnowledgePaths } from "../../hooks/useKnowledgePaths";
+import { DriftDiffModal } from "../../components/DriftDiffModal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSkills, useUpdateSkill } from "../../hooks/skills/useSkills";
 import { useSkillActivitySummaries } from "../../hooks/skills/useSkillActivity";
@@ -64,6 +67,7 @@ import { supabase } from "../../lib/supabase";
 import { useSkillLibraryMap } from "../../hooks/gallery/useSkillLibrary";
 import type { Skill } from "../../hooks/skills/types";
 import { useSkillTypesStore } from "../../stores/skillTypesStore";
+import { useAddClassificationValues } from "../../hooks/useClassificationValues";
 import {
   useGridLayouts,
   useSaveGridLayout,
@@ -87,15 +91,17 @@ interface SkillReviewRow {
   description: string;
   category: string;
   subcategory: string;
+  dataCategory: string;
+  dataSubCategory: string;
   dataTypes: string[];
   skillType: string;
   target: string;
   status: string;
   domain: string[];
+  tags: string[];
   platform: string[];
   command: string;
   verified: boolean;
-  last_audited: string;
   rating: number | null;
   owner: string;
   hasDemo: boolean;
@@ -109,10 +115,10 @@ interface SkillReviewRow {
   webEntries: number;
   webPublished: number;
   webFeatured: number;
-  // Activity tracking (from skill_activity table)
-  lastChanged: string;
-  lastChangedBy: string;
-  changeCount: number;
+  // Activity tracking
+  lastChanged: string;       // skills.updated_at — auto-bumped on every UPDATE
+  lastChangedBy: string;     // most-recent skill_changes.changed_by per slug
+  changeCount: number;       // count of skill_changes rows per slug
 }
 
 
@@ -130,9 +136,13 @@ interface SkillReviewGridProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function isStale(lastAudited: string | undefined): boolean {
-  if (!lastAudited) return true;
-  const diff = Date.now() - new Date(lastAudited).getTime();
+// "Stale" used to be `last_audited > 30 days` but that field was dropped
+// in the Layer 1 metadata alignment. Now uses `lastChanged` (skills.updated_at
+// fallback or latest skill_changes row) which is a more honest signal — a
+// skill that hasn't been updated in 30 days probably needs review.
+function isStale(lastChanged: string | undefined): boolean {
+  if (!lastChanged) return true;
+  const diff = Date.now() - new Date(lastChanged).getTime();
   return diff > 30 * 24 * 60 * 60 * 1000; // 30 days
 }
 
@@ -146,17 +156,106 @@ function matchesView(r: SkillReviewRow, v: SkillViewMode): boolean {
     case "draft":       return r.status === "draft" || r.status === "inactive";
     case "deprecated":  return r.status === "deprecated";
     case "deleted":     return r.status === "deleted";
-    case "stale":       return r.status === "active" && isStale(r.last_audited);
+    case "stale":       return r.status === "active" && isStale(r.lastChanged);
     case "unverified":  return r.status === "active" && !r.verified;
   }
+}
+
+// ─── Column scope tagging ─────────────────────────────────────────────────────
+// "common" = metadata shared across skills + all 4 artifact tabs (post-Layer-1
+// alignment). "specific" = unique to skills. Used as headerClass on each
+// column def so the AG Grid header strip can be coloured to make the
+// distinction obvious at a glance.
+const COMMON_HEADER_CLASS = "scope-common";
+const SPECIFIC_HEADER_CLASS = "scope-specific";
+
+// Source of truth for which row fields are common vs skill-specific.
+const COMMON_FIELDS = new Set<string>([
+  "name", "description",
+  "category", "subcategory",
+  "dataCategory", "dataSubCategory",
+  // dataTypes (Data Representation) — truly defines the data; common across all 5 types.
+  "dataTypes",
+  "status", "tags",
+  "owner", "solution", "action", "verified",
+  // Deployment + audit are common across all 5 types — Skills calls them
+  // "domain" and "lastChanged"; artifacts call them "deployedTo" and
+  // "updatedDate". Different field names, same concept.
+  "domain", "lastChanged",
+]);
+
+function scopeHeaderClass(field: string): string {
+  return COMMON_FIELDS.has(field) ? COMMON_HEADER_CLASS : SPECIFIC_HEADER_CLASS;
 }
 
 // ─── Column Definitions ───────────────────────────────────────────────────────
 
 const STATUS_VALUES = ["active", "test", "review", "draft", "inactive", "deprecated", "deleted"];
 
-function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] {
-  return [
+// Per-domain drift health for a single skill row.
+// Map keyed by `${slug}|${target_domain}` → drift status. Lets the Client
+// column's chip cell renderer colour each chip without doing a per-row scan.
+type SkillDriftMap = Map<string, "in_sync" | "drifted" | "missing" | "not_distributed">;
+
+function driftKey(slug: string, domain: string): string {
+  return `${slug}|${domain}`;
+}
+
+// Mirror of reviewColumns.ts CANONICAL_COMMON_ORDER using Skills-native field
+// names. Keep these two ordering lists in lockstep so shared metadata appears
+// in the same visual position on Skills + every artifact tab.
+//   dataTypes    ↔ dataType        (Skills uses plural array)
+//   status       ↔ usageStatus     (Skills uses "status")
+//   domain       ↔ deployedTo      (chip column showing target domains)
+//   lastChanged  ↔ updatedDate     (audit timestamp)
+const SKILL_CANONICAL_COMMON_ORDER: string[] = [
+  "tags",
+  "category", "subcategory",
+  "dataCategory", "dataSubCategory",
+  "dataTypes",
+  "status",
+  "solution", "action",
+  "domain",
+  "owner", "verified",
+  "lastChanged",
+];
+
+function hoistCommonSkillColumns(
+  cols: (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[],
+): (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] {
+  // Identity stays at the front in its original order. Common fields are
+  // pulled out and re-emitted in canonical order. Everything else
+  // (skill-specific cells like Skill Type, Target, hasDemo, etc.) keeps
+  // its original relative position after the common block.
+  const identityFields = new Set(["name", "slug", "isStale", "id"]);
+  const identityCols: (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] = [];
+  const commonByField = new Map<string, ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>>();
+  const otherCols: (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] = [];
+
+  for (const col of cols) {
+    const field = ("field" in col ? (col.field as string | undefined) : undefined)
+      ?? (col as ColDef<SkillReviewRow>).colId
+      ?? "";
+    if (identityFields.has(field)) identityCols.push(col);
+    else if (SKILL_CANONICAL_COMMON_ORDER.includes(field)) commonByField.set(field, col);
+    else otherCols.push(col);
+  }
+
+  const orderedCommon: (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] = [];
+  for (const f of SKILL_CANONICAL_COMMON_ORDER) {
+    const c = commonByField.get(f);
+    if (c) orderedCommon.push(c);
+  }
+  return [...identityCols, ...orderedCommon, ...otherCols];
+}
+
+function buildColumns(
+  wrapNotes: boolean,
+  userNames: string[],
+  driftMap: SkillDriftMap,
+  onChipClick: (slug: string, domain: string) => void,
+): (ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)[] {
+  return hoistCommonSkillColumns([
     {
       field: "name",
       headerName: "Name",
@@ -247,8 +346,23 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
       sortIndex: 1,
     },
     {
+      // Common (Layer 1) — what kind of data this skill operates on.
+      // Same concept as the artifact tabs' Data Category column.
+      field: "dataCategory",
+      headerName: "Data Category",
+      filter: "agSetColumnFilter",
+      editable: true,
+    },
+    {
+      field: "dataSubCategory",
+      headerName: "Data Sub-Category",
+      filter: "agSetColumnFilter",
+      editable: true,
+    },
+    {
       field: "dataTypes",
-      headerName: "Data Types",
+      headerName: "Data Representation",
+      headerTooltip: "Nature of the data: aggregate, transactional, configuration, etc. Multiple values allowed.",
       minWidth: 200,
       filter: "agSetColumnFilter",
       filterParams: {
@@ -263,12 +377,14 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
       valueFormatter: (params: { value: string[] | null | undefined }) =>
         Array.isArray(params.value) ? params.value.join(", ") : "",
       valueParser: (params: { newValue: unknown }): string[] => {
-        if (Array.isArray(params.newValue)) return params.newValue.map(String);
+        // Normalize to lowercase-hyphenated to match the canonical
+        // lookup_values vocabulary. New values typed by the user get
+        // auto-registered via handleCellValueChanged.
+        const normalize = (s: string) =>
+          s.trim().toLowerCase().replace(/\s+/g, "-").replace(/-?\/+-?/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+        if (Array.isArray(params.newValue)) return params.newValue.map(String).map(normalize).filter(Boolean);
         if (typeof params.newValue !== "string") return [];
-        return params.newValue
-          .split(",")
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean);
+        return params.newValue.split(",").map(normalize).filter(Boolean);
       },
       cellStyle: { display: "flex", alignItems: "center", paddingTop: 4, paddingBottom: 4, lineHeight: "1.4" },
       cellRenderer: (params: { value: string[] | null | undefined }) => {
@@ -279,7 +395,7 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
             {tags.map((tag) => (
               <span
                 key={tag}
-                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400"
+                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400"
               >
                 {tag}
               </span>
@@ -353,13 +469,80 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
     },
     {
       field: "domain",
-      headerName: "Client",
+      headerName: "Deployed To",
       minWidth: 140,
       filter: "agSetColumnFilter",
       filterParams: {
         keyCreator: (p: { value: string[] | null | undefined }) => p.value ?? [],
         valueFormatter: (p: { value: string }) => p.value,
       },
+      // Not editable inline — domain assignment now flows through the Lab
+      // module's sync pipeline. Keeping editable=true with grid-level
+      // singleClickEdit would eat the chip clicks that open the diff modal.
+      autoHeight: true,
+      wrapText: true,
+      valueFormatter: (params: { value: string[] | null | undefined }) =>
+        Array.isArray(params.value) ? params.value.join(", ") : "",
+      cellStyle: { display: "flex", alignItems: "center", paddingTop: 4, paddingBottom: 4, lineHeight: "1.4" },
+      cellRenderer: (params: { value: string[] | null | undefined; data?: SkillReviewRow }) => {
+        const tags = Array.isArray(params.value) ? params.value : [];
+        if (tags.length === 0) return <span className="text-zinc-300 text-xs">—</span>;
+        const slug = params.data?.slug ?? "";
+        return (
+          <span className="flex flex-wrap items-center gap-1">
+            {tags.map((tag) => {
+              const status = driftMap.get(driftKey(slug, tag));
+              // Default styling = unknown (no drift data yet); colour is purple
+              // to match the original chip. in_sync/drifted/missing get health
+              // colours; not_distributed = grey (assigned but not yet generated).
+              const colour =
+                status === "in_sync"
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                  : status === "drifted"
+                  ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                  : status === "missing"
+                  ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50"
+                  : status === "not_distributed"
+                  ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                  : "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50";
+              const tooltip = status
+                ? `${tag} · ${status.replace("_", " ")} — click to diff vs source`
+                : `${tag} · drift unknown`;
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  // Suppress AG Grid's cell-edit + selection handlers, which
+                  // attach on mousedown/pointerdown and would otherwise eat
+                  // the click before our onClick fires.
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (slug) onChipClick(slug, tag);
+                  }}
+                  title={tooltip}
+                  className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer", colour)}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </span>
+        );
+      },
+    },
+    {
+      field: "tags",
+      headerName: "Tags",
+      minWidth: 160,
+      filter: "agSetColumnFilter",
+      filterParams: {
+        keyCreator: (p: { value: string[] | null | undefined }) => p.value ?? [],
+        valueFormatter: (p: { value: string }) => p.value,
+      },
+      // Inline edit: comma-separated text → array of trimmed lowercase tags.
       editable: true,
       autoHeight: true,
       wrapText: true,
@@ -375,14 +558,14 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
       },
       cellStyle: { display: "flex", alignItems: "center", paddingTop: 4, paddingBottom: 4, lineHeight: "1.4" },
       cellRenderer: (params: { value: string[] | null | undefined }) => {
-        const tags = Array.isArray(params.value) ? params.value : [];
-        if (tags.length === 0) return <span className="text-zinc-300 text-xs">—</span>;
+        const list = Array.isArray(params.value) ? params.value : [];
+        if (list.length === 0) return <span className="text-zinc-300 text-xs">—</span>;
         return (
           <span className="flex flex-wrap items-center gap-1">
-            {tags.map((tag) => (
+            {list.map((tag) => (
               <span
                 key={tag}
-                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
+                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
               >
                 {tag}
               </span>
@@ -452,18 +635,6 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
         return params.value
           ? <span className="text-emerald-500 text-xs">Yes</span>
           : <span className="text-zinc-400 text-xs">No</span>;
-      },
-    },
-    {
-      field: "last_audited",
-      headerName: "Last Audited",
-      filter: "agTextColumnFilter",
-      editable: true,
-      cellClass: (params) => {
-        if (!params.value || isStale(params.value)) {
-          return "text-xs text-amber-600 dark:text-amber-400";
-        }
-        return "text-xs text-zinc-600 dark:text-zinc-400";
       },
     },
     {
@@ -646,7 +817,7 @@ function buildColumns(wrapNotes: boolean, userNames: string[]): (ColDef<SkillRev
         },
       ],
     },
-  ];
+  ]);
 }
 
 // ─── Detail Row ───────────────────────────────────────────────────────────────
@@ -766,8 +937,39 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
   const queryClient = useQueryClient();
   const skillInit = useSkillInit();
   const updateSkill = useUpdateSkill();
+  const addDataTypeValues = useAddClassificationValues();
 
   const { data: skills = [], isLoading } = useSkills();
+
+  // Drift state — drives Client-chip colouring + the diff modal that opens
+  // when a chip is clicked.
+  usePrimaryKnowledgePaths();
+  const { data: driftStatuses = [] } = useSkillCheckAll();
+  const driftMap = useMemo<SkillDriftMap>(() => {
+    const map: SkillDriftMap = new Map();
+    // distribution_path is repo-relative, e.g.
+    //   "0_Platform/domains/<domain>/ai/skills/<slug>"
+    const re = /(?:^|\/)0_Platform\/domains\/([^/]+)\/ai\/skills\//;
+    for (const d of driftStatuses) {
+      const m = d.distribution_path.match(re);
+      if (!m) continue;
+      const target_domain = m[1];
+      // Status is one of "in_sync" | "drifted" | "not_distributed" | "missing"
+      map.set(driftKey(d.slug, target_domain), d.status as "in_sync" | "drifted" | "missing" | "not_distributed");
+    }
+    return map;
+  }, [driftStatuses]);
+
+  // (slug, domain, name) of the chip the user clicked → opens DriftDiffModal.
+  const [driftModal, setDriftModal] = useState<{ slug: string; name: string; targetPath: string } | null>(null);
+  const handleChipClick = useCallback((slug: string, domain: string) => {
+    const skill = skills.find((s) => s.slug === slug);
+    setDriftModal({
+      slug,
+      name: skill?.name ?? slug,
+      targetPath: `0_Platform/domains/${domain}/ai/skills/${slug}`,
+    });
+  }, [skills]);
   const { data: users } = useQuery({
     queryKey: ["users-for-skills"],
     queryFn: async () => {
@@ -804,6 +1006,13 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
   const [categoryFilter, setCategoryFilter] = useState<string | "all">("all");
   const [subcategoryFilter, setSubcategoryFilter] = useState<string | "all">("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "report" | "diagnostic" | "chat">("all");
+  // Client filter: multi-select set of domain slugs. Empty = no filter.
+  const [clientFilter, setClientFilter] = useState<Set<string>>(new Set());
+  // Tag filter: multi-select. Empty = no filter. AND with everything else.
+  const [tagFilter, setTagFilter] = useState<Set<string>>(new Set());
+  // Data Representation filter — values from the skills `dataTypes` array.
+  // A skill matches if any of its dataTypes is in the selected set.
+  const [dataRepFilter, setDataRepFilter] = useState<Set<string>>(new Set());
   const [wrapNotes, setWrapNotes] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -992,15 +1201,17 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
         description: skill.description ?? "",
         category: skill.category ?? "",
         subcategory: skill.subcategory ?? "",
+        dataCategory: skill.data_category ?? "",
+        dataSubCategory: skill.data_sub_category ?? "",
         dataTypes: Array.isArray(skill.data_types) ? skill.data_types : [],
         skillType: skill.skill_type ?? "report",
         target: skill.target,
         status: skill.status,
         domain: Array.isArray(skill.domain) ? skill.domain : [],
+        tags: Array.isArray(skill.tags) ? skill.tags : [],
         platform: Array.isArray(skill.platform) ? skill.platform : [],
         command: skill.command ?? "",
         verified: skill.verified,
-        last_audited: skill.last_audited ?? "",
         rating: skill.rating,
         owner: skill.owner ?? "",
         hasDemo: skill.has_demo,
@@ -1010,7 +1221,11 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
         demoUploaded: skill.demo_uploaded,
         demoUrl: skill.demo_url ?? "",
         hasCards: feedCardSlugs?.has(skill.slug) ?? false,
-        lastChanged: activity?.lastChanged ?? "",
+        // Last Changed comes from skill_changes (auto-populated by the
+        // trg_skill_changes trigger on every UPDATE). Falls back to
+        // skills.updated_at when a skill has no edit history yet so the
+        // column never reads as empty for legitimate rows.
+        lastChanged: activity?.lastChanged ?? skill.updated_at ?? "",
         lastChangedBy: activity?.lastActor ?? "",
         changeCount: activity?.changeCount ?? 0,
         webEntries: web?.entries ?? 0,
@@ -1026,9 +1241,21 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
         if (typeFilter !== "all" && r.skillType !== typeFilter) return false;
         if (categoryFilter !== "all" && (r.category || "Uncategorized") !== categoryFilter) return false;
         if (subcategoryFilter !== "all" && (r.subcategory || "—") !== subcategoryFilter) return false;
+        if (clientFilter.size > 0) {
+          const domains = Array.isArray(r.domain) ? r.domain : [];
+          if (!domains.some((d) => clientFilter.has(d))) return false;
+        }
+        if (tagFilter.size > 0) {
+          const tags = Array.isArray(r.tags) ? r.tags : [];
+          if (!tags.some((t) => tagFilter.has(t))) return false;
+        }
+        if (dataRepFilter.size > 0) {
+          const dts = Array.isArray(r.dataTypes) ? r.dataTypes : [];
+          if (!dts.some((d) => dataRepFilter.has(d))) return false;
+        }
         return true;
       });
-  }, [rowData, view, typeFilter, categoryFilter, subcategoryFilter]);
+  }, [rowData, view, typeFilter, categoryFilter, subcategoryFilter, clientFilter, tagFilter, dataRepFilter]);
 
   // Counts per view (computed from rowData with current type + category filters NOT applied,
   // so the sidebar reflects the universe of skills)
@@ -1053,7 +1280,29 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
   // so categories reflect the selected view but not the typeFilter chip.
   const viewScopedRows = useMemo(() => rowData.filter((r) => matchesView(r, view)), [rowData, view]);
 
-  const columnDefs = useMemo(() => buildColumns(wrapNotes, users ?? []), [wrapNotes, users]);
+  const columnDefs = useMemo(
+    () => {
+      // Post-process the column defs to tag each header with a scope class
+      // (common vs skill-specific) so the AG Grid header strip can colour
+      // them. Preserves any existing headerClass — appends rather than
+      // replaces.
+      const cols = buildColumns(wrapNotes, users ?? [], driftMap, handleChipClick);
+      const tagScope = (col: ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>): ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow> => {
+        if ("children" in col && Array.isArray(col.children)) {
+          return { ...col, children: col.children.map((c) => tagScope(c as ColDef<SkillReviewRow> | ColGroupDef<SkillReviewRow>)) };
+        }
+        const c = col as ColDef<SkillReviewRow>;
+        const field = (c.field as string | undefined) ?? (c.colId as string | undefined) ?? "";
+        if (!field) return c;
+        const scopeClass = scopeHeaderClass(field);
+        const existing = typeof c.headerClass === "string" ? c.headerClass : "";
+        const merged = existing.includes(scopeClass) ? existing : `${existing} ${scopeClass}`.trim();
+        return { ...c, headerClass: merged };
+      };
+      return cols.map(tagScope);
+    },
+    [wrapNotes, users, driftMap, handleChipClick],
+  );
 
   const defaultColDef = useMemo<ColDef>(() => ({
     sortable: true,
@@ -1104,16 +1353,29 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
         demoUrl: "demo_url",
         skillType: "skill_type",
         dataTypes: "data_types",
+        dataCategory: "data_category",
+        dataSubCategory: "data_sub_category",
       };
       const dbField = fieldMap[field] ?? field;
 
       const editableFields = [
-        "name", "description", "category", "subcategory", "data_types", "skill_type", "target", "status",
-        "domain", "platform", "command", "verified", "last_audited", "rating", "owner",
+        "name", "description", "category", "subcategory",
+        "data_category", "data_sub_category",
+        "data_types", "skill_type", "target", "status",
+        "domain", "tags", "platform", "command", "verified", "rating", "owner", "solution",
         "has_demo", "has_examples", "has_deck", "has_guide",
         "demo_uploaded", "demo_url",
       ];
       if (!editableFields.includes(dbField)) return;
+
+      // Auto-register new dataTypes values into lookup_values so the
+      // dropdown vocabulary stays in sync with what skills actually use.
+      if (dbField === "data_types" && Array.isArray(data[field])) {
+        const cleaned = (data[field] as string[])
+          .map((v) => String(v).trim().toLowerCase().replace(/\s+/g, "-").replace(/-?\/+-?/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, ""))
+          .filter(Boolean);
+        if (cleaned.length > 0) addDataTypeValues.mutate({ field: "dataType", values: cleaned });
+      }
 
       // Auto-register new skill types
       if (dbField === "skill_type" && data[field]) {
@@ -1487,6 +1749,19 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
         .ag-theme-alpine-dark .ag-header-cell.skill-name-header .ag-header-cell-label {
           padding-left: 24px !important;
         }
+        /* Scope tagging: common metadata columns share a colour across the
+           Lab tabs (skills + 4 artifact types post-Layer-1 alignment). Skill-
+           specific columns get a different tint so the boundary is visible. */
+        .ag-theme-alpine .ag-header-cell.scope-common,
+        .ag-theme-alpine-dark .ag-header-cell.scope-common {
+          background-color: rgba(20, 184, 166, 0.08); /* teal */
+          box-shadow: inset 0 -2px 0 rgba(20, 184, 166, 0.5);
+        }
+        .ag-theme-alpine .ag-header-cell.scope-specific,
+        .ag-theme-alpine-dark .ag-header-cell.scope-specific {
+          background-color: rgba(168, 85, 247, 0.05); /* violet */
+          box-shadow: inset 0 -2px 0 rgba(168, 85, 247, 0.4);
+        }
       `}</style>
 
       <div className="flex-1 min-h-0 flex overflow-hidden px-4 py-4">
@@ -1501,6 +1776,12 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
             setCategoryFilter={(c) => { setCategoryFilter(c); setSubcategoryFilter("all"); }}
             subcategoryFilter={subcategoryFilter}
             setSubcategoryFilter={setSubcategoryFilter}
+            clientFilter={clientFilter}
+            setClientFilter={setClientFilter}
+            tagFilter={tagFilter}
+            setTagFilter={setTagFilter}
+            dataRepFilter={dataRepFilter}
+            setDataRepFilter={setDataRepFilter}
             onClose={() => setSidebarOpen(false)}
           />
         )}
@@ -1739,6 +2020,20 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
                     <div className="text-xs text-zinc-400 dark:text-zinc-500">Purge thinkval.com cache</div>
                   </div>
                 </button>
+                <button
+                  onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: ["skill-drift"] });
+                    setActionsMenuOpen(false);
+                    toast.success("Refreshing drift status…");
+                  }}
+                  className="w-full text-left px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 flex items-start gap-2.5"
+                >
+                  <RotateCcw size={15} className="text-zinc-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Refresh Drift</div>
+                    <div className="text-xs text-zinc-400 dark:text-zinc-500">Re-check Client chip drift status against the filesystem</div>
+                  </div>
+                </button>
               </div>
             )}
           </div>
@@ -1876,6 +2171,22 @@ export function SkillReviewGrid({ onSelectSkill, onToggleChanges, showChanges }:
       {actionsMenuOpen && (
         <div className="fixed inset-0 z-40" onClick={() => setActionsMenuOpen(false)} />
       )}
+
+      {/* Drift diff — opened by clicking a Client column chip */}
+      {driftModal && (
+        <DriftDiffModal
+          slug={driftModal.slug}
+          skillName={driftModal.name}
+          targetPath={driftModal.targetPath}
+          leftLabel="Deployed copy"
+          rightLabel="Source (_skills/)"
+          onClose={() => setDriftModal(null)}
+          onSynced={() => {
+            setDriftModal(null);
+            queryClient.invalidateQueries({ queryKey: ["skill-check-all"] });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1901,6 +2212,12 @@ function SkillReviewSidebar({
   setCategoryFilter,
   subcategoryFilter,
   setSubcategoryFilter,
+  clientFilter,
+  setClientFilter,
+  tagFilter,
+  setTagFilter,
+  dataRepFilter,
+  setDataRepFilter,
   onClose,
 }: {
   rows: SkillReviewRow[];
@@ -1911,9 +2228,16 @@ function SkillReviewSidebar({
   setCategoryFilter: (v: string | "all") => void;
   subcategoryFilter: string | "all";
   setSubcategoryFilter: (v: string | "all") => void;
+  clientFilter: Set<string>;
+  setClientFilter: (next: Set<string>) => void;
+  tagFilter: Set<string>;
+  setTagFilter: (next: Set<string>) => void;
+  dataRepFilter: Set<string>;
+  setDataRepFilter: (next: Set<string>) => void;
   onClose?: () => void;
 }) {
-  // Group rows by category → subcategory
+  // Group rows by category → subcategory (used to populate the Category +
+  // Subcategory dropdowns).
   const categoryGroups = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
     for (const r of rows) {
@@ -1934,15 +2258,35 @@ function SkillReviewSidebar({
       .sort((a, b) => a.category.localeCompare(b.category));
   }, [rows]);
 
-  // Track which categories are expanded. Default = none (all collapsed by default).
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const toggleCat = (c: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(c)) next.delete(c); else next.add(c);
-      return next;
-    });
-  };
+  // Subcategories under the currently-selected category (for the second dropdown).
+  const activeSubcategories = useMemo(() => {
+    if (categoryFilter === "all") return [];
+    return categoryGroups.find((g) => g.category === categoryFilter)?.subcategories ?? [];
+  }, [categoryGroups, categoryFilter]);
+
+  // Faceted option lists for the three checkbox filters. Counts are over
+  // the rows the sidebar receives (post-view-filter), so they reflect what
+  // the user can actually see/select.
+  const clientOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) for (const d of r.domain ?? []) counts.set(d, (counts.get(d) ?? 0) + 1);
+    return Array.from(counts.entries()).map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+  }, [rows]);
+
+  const tagOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) for (const t of r.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return Array.from(counts.entries()).map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+  }, [rows]);
+
+  const dataRepOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) for (const d of r.dataTypes ?? []) counts.set(d, (counts.get(d) ?? 0) + 1);
+    return Array.from(counts.entries()).map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+  }, [rows]);
 
   return (
     <aside className="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
@@ -1986,80 +2330,80 @@ function SkillReviewSidebar({
         </CollapsibleSection>
       </div>
 
-      {/* Category tree */}
-      <div className="flex-1 overflow-y-auto px-2 py-3">
-        <button
-          onClick={() => { setCategoryFilter("all"); setSubcategoryFilter("all"); }}
-          className={cn(
-            "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-[12.5px] mb-1",
-            categoryFilter === "all"
-              ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-              : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
-          )}
-        >
-          <span className="font-medium">All categories</span>
-          <span className="text-[11px] text-zinc-500">{rows.length}</span>
-        </button>
+      {/* Category + Subcategory — dropdowns instead of an expanded tree
+          so the sidebar stays short and leaves room for the Client filter. */}
+      <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-800 space-y-2">
+        <div>
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1">
+            Category
+          </label>
+          <select
+            value={categoryFilter}
+            onChange={(e) => { setCategoryFilter(e.target.value); setSubcategoryFilter("all"); }}
+            className="w-full px-2 py-1 text-[12.5px] rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          >
+            <option value="all">All categories ({rows.length})</option>
+            {categoryGroups.map(({ category, total }) => (
+              <option key={category} value={category}>{category} ({total})</option>
+            ))}
+          </select>
+        </div>
 
-        {categoryGroups.length === 0 && (
-          <div className="px-2 py-3 text-[11px] text-zinc-400 italic">No categories</div>
+        {categoryFilter !== "all" && activeSubcategories.length > 0 && (
+          activeSubcategories.length > 1 || activeSubcategories[0]?.subcategory !== "—"
+        ) && (
+          <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1">
+              Subcategory
+            </label>
+            <select
+              value={subcategoryFilter}
+              onChange={(e) => setSubcategoryFilter(e.target.value)}
+              className="w-full px-2 py-1 text-[12.5px] rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            >
+              <option value="all">All subcategories</option>
+              {activeSubcategories.map(({ subcategory, count }) => (
+                <option key={subcategory} value={subcategory}>
+                  {subcategory === "—" ? "(no subcategory)" : subcategory} ({count})
+                </option>
+              ))}
+            </select>
+          </div>
         )}
+      </div>
 
-        {categoryGroups.map(({ category, total, subcategories }) => {
-          const isOpen = expanded.has(category);
-          const isActiveCat = categoryFilter === category;
-          const hasMultipleSubs = subcategories.length > 1 || subcategories[0]?.subcategory !== "—";
-          return (
-            <div key={category} className="mt-1">
-              <div className="flex items-center group">
-                <button
-                  onClick={() => hasMultipleSubs && toggleCat(category)}
-                  className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                  aria-label="Toggle"
-                >
-                  {hasMultipleSubs ? (
-                    isOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />
-                  ) : (
-                    <span className="inline-block w-[11px]" />
-                  )}
-                </button>
-                <button
-                  onClick={() => setCategoryFilter(category)}
-                  className={cn(
-                    "flex-1 flex items-center justify-between gap-2 pr-2 py-1 rounded text-[12px] text-left truncate",
-                    isActiveCat
-                      ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300",
-                  )}
-                  title={category}
-                >
-                  <span className="truncate">{category}</span>
-                  <span className="text-[11px] text-zinc-500 shrink-0">{total}</span>
-                </button>
-              </div>
-
-              {isOpen && hasMultipleSubs && subcategories.map(({ subcategory, count }) => {
-                const isActiveSub = isActiveCat && subcategoryFilter === subcategory;
-                return (
-                  <button
-                    key={subcategory}
-                    onClick={() => { setCategoryFilter(category); setSubcategoryFilter(subcategory); }}
-                    className={cn(
-                      "w-full flex items-center justify-between gap-2 pl-7 pr-2 py-0.5 rounded text-[11.5px] text-left",
-                      isActiveSub
-                        ? "bg-teal-100 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300"
-                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400",
-                    )}
-                    title={subcategory}
-                  >
-                    <span className="truncate">{subcategory === "—" ? <span className="italic text-zinc-400">no subcategory</span> : subcategory}</span>
-                    <span className="text-[11px] text-zinc-500 shrink-0">{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })}
+      {/* Three multi-select facets — Client, Data Representation, Tags.
+          Each is the same shared component so visual + interaction stays
+          consistent. They share vertical space (flex-1) below the fixed
+          View/Category sections. */}
+      <div className="border-b border-zinc-200 dark:border-zinc-800 flex-1 min-h-0 flex flex-col">
+        <FacetCheckboxFilter
+          label="Client"
+          options={clientOptions}
+          selected={clientFilter}
+          onChange={setClientFilter}
+          searchPlaceholder="Search clients…"
+          emptyText="No clients"
+          containerClassName="flex-1 min-h-0 border-b border-zinc-200 dark:border-zinc-800"
+        />
+        <FacetCheckboxFilter
+          label="Data Representation"
+          options={dataRepOptions}
+          selected={dataRepFilter}
+          onChange={setDataRepFilter}
+          searchPlaceholder="Search data types…"
+          emptyText="No data types yet"
+          containerClassName="flex-1 min-h-0 border-b border-zinc-200 dark:border-zinc-800"
+        />
+        <FacetCheckboxFilter
+          label="Tags"
+          options={tagOptions}
+          selected={tagFilter}
+          onChange={setTagFilter}
+          searchPlaceholder="Search tags…"
+          emptyText="No tags yet — add some inline"
+          containerClassName="flex-1 min-h-0"
+        />
       </div>
     </aside>
   );

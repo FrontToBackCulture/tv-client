@@ -40,11 +40,13 @@ import {
   Star,
   PanelLeftOpen,
   PanelLeftClose,
+  Download,
 } from "lucide-react";
 import { useAuth } from "../../stores/authStore";
 import {
   useMcfJobs,
   useMcfJob,
+  exportMcfJobsCsv,
   useJobReviews,
   useReviewedJobIds,
   useUpsertJobReview,
@@ -124,24 +126,6 @@ export function JobReviewsView() {
 
   const loading = smartSearch ? isSemanticLoading : isLoading;
 
-  // Infinite scroll sentinel (standard mode only)
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (smartSearch) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
-      },
-      { threshold: 0.1 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, smartSearch]);
-
   return (
    <div className="h-full flex overflow-hidden px-4 py-4">
     <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
@@ -169,9 +153,13 @@ export function JobReviewsView() {
           {loading ? (
             <Loader2 size={10} className="animate-spin" />
           ) : (
-            <>{filteredJobs.length}{smartSearch ? "" : "+"} results</>
+            <>
+              {filteredJobs.length}
+              {(smartSearch ? false : hasNextPage) ? "+" : ""} results
+            </>
           )}
-          {smartSearch && isSemanticFetching && (
+          {((smartSearch && isSemanticFetching) ||
+            (!smartSearch && isFetchingNextPage)) && (
             <Loader2 size={10} className="animate-spin" />
           )}
         </div>
@@ -199,8 +187,9 @@ export function JobReviewsView() {
               onSelectJob={(uuid) =>
                 setSelectedMcfUuid(uuid === selectedMcfUuid ? null : uuid)
               }
-              sentinelRef={!smartSearch ? sentinelRef : undefined}
+              hasNextPage={!smartSearch && !!hasNextPage}
               isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
               isFullscreen={isFullscreen}
             />
           )}
@@ -266,6 +255,7 @@ function JobsFilterBar({
   const deleteFilter = useDeleteSavedFilter();
   const [searchInput, setSearchInput] = useState(filters.search || "");
   const [smartInput, setSmartInput] = useState(semanticQuery);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Layouts state — local to the bar, persisted in localStorage
   const LAYOUTS_KEY = "tv-jobs-grid-layouts";
@@ -439,6 +429,28 @@ function JobsFilterBar({
         >
           <Save size={12} />
           Save
+        </button>
+
+        <button
+          onClick={async () => {
+            if (isExporting) return;
+            setIsExporting(true);
+            try {
+              const { rows, filename } = await exportMcfJobsCsv(filters);
+              if (rows === 0) alert("No rows match the current filters.");
+              else console.log(`Exported ${rows} rows to ${filename}`);
+            } catch (err) {
+              alert(err instanceof Error ? err.message : String(err));
+            } finally {
+              setIsExporting(false);
+            }
+          }}
+          disabled={isExporting}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md disabled:opacity-60"
+          title="Export current filtered set as CSV (full result set, not just loaded rows)"
+        >
+          {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+          {isExporting ? "Exporting…" : "Export"}
         </button>
 
         {/* Layouts dropdown */}
@@ -715,16 +727,18 @@ const JobsGrid = forwardRef<JobsGridHandle, {
   reviewedIds: Set<string> | undefined;
   selectedMcfUuid: string | null;
   onSelectJob: (mcfUuid: string) => void;
-  sentinelRef?: React.Ref<HTMLDivElement>;
+  hasNextPage: boolean;
   isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
   isFullscreen: boolean;
 }>(function JobsGrid({
   jobs,
   reviewedIds,
   selectedMcfUuid,
   onSelectJob,
-  sentinelRef,
+  hasNextPage,
   isFetchingNextPage,
+  fetchNextPage,
   isFullscreen,
 }, ref) {
   const theme = useAppStore((s) => s.theme);
@@ -886,6 +900,19 @@ const JobsGrid = forwardRef<JobsGridHandle, {
     [],
   );
 
+  // Trigger next page when the user scrolls within ~20 rows of the loaded bottom.
+  // Replaces an earlier IntersectionObserver-on-sentinel pattern that ran away —
+  // the sentinel sat outside AG Grid's scroll viewport, was permanently visible,
+  // and caused the grid to eagerly fetch the entire table on mount.
+  const onBodyScroll = useCallback(() => {
+    if (!hasNextPage || isFetchingNextPage) return;
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const lastVisible = api.getLastDisplayedRowIndex();
+    const total = api.getDisplayedRowCount();
+    if (lastVisible >= total - 20) fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   const themeClass = theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine";
 
   return (
@@ -916,6 +943,7 @@ const JobsGrid = forwardRef<JobsGridHandle, {
           rowHeight={36}
           headerHeight={32}
           floatingFiltersHeight={28}
+          onBodyScroll={onBodyScroll}
           autoSizeStrategy={{ type: "fitCellContents", skipHeader: false }}
           animateRows
           enableBrowserTooltips
@@ -931,13 +959,6 @@ const JobsGrid = forwardRef<JobsGridHandle, {
           }
         />
       </div>
-      {sentinelRef && (
-        <div ref={sentinelRef} className="h-10 flex items-center justify-center flex-shrink-0">
-          {isFetchingNextPage && (
-            <Loader2 size={14} className="animate-spin text-zinc-400" />
-          )}
-        </div>
-      )}
     </div>
   );
 });

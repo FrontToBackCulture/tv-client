@@ -22,6 +22,11 @@ const SYNC_TOGGLES = [
     label: "Outlook Calendar Sync",
     description: "Sync calendar events from Outlook every 5 minutes",
   },
+  {
+    key: "bg_sync_ga4",
+    label: "GA4 Analytics Sync",
+    description: "Sync GA4 platform and website analytics every 6 hours (when stale >24h)",
+  },
 ] as const;
 
 type SyncKey = (typeof SYNC_TOGGLES)[number]["key"];
@@ -106,6 +111,7 @@ export function BackgroundSyncView() {
   const [values, setValues] = useState<Record<SyncKey, boolean>>({
     bg_sync_outlook_email: false,
     bg_sync_outlook_calendar: false,
+    bg_sync_ga4: false,
   });
   const [loading, setLoading] = useState(true);
   const cronQuery = useCronJobs();

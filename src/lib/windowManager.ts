@@ -19,7 +19,7 @@ const moduleLabels: Record<ModuleId, string> = {
   analytics: "Analytics",
   product: "Product",
   gallery: "Gallery",
-  skills: "Skills",
+  lab: "Lab",
   "mcp-tools": "MCP Tools",
   portal: "Portal",
   scheduler: "Scheduler",

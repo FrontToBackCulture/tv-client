@@ -13,7 +13,7 @@ import {
   LucideIcon,
   Headset,
   Clock,
-  Puzzle,
+  FlaskConical,
   Wrench,
   GitBranch,
   MailPlus,
@@ -109,7 +109,7 @@ const navSections: NavSection[] = [
     items: [
       { id: "domains", icon: Globe, label: "Domains", shortcut: "\u23183" },
       { id: "public-data", icon: Database, label: "Public Data", shortcut: "" },
-      { id: "skills", icon: Puzzle, label: "Skills", shortcut: "\u23188" },
+      { id: "lab", icon: FlaskConical, label: "Lab", shortcut: "\u23188" },
       { id: "mcp-tools", icon: Wrench, label: "MCP Tools", shortcut: "" },
       { id: "product", icon: Boxes, label: "Product", shortcut: "\u23184" },
       { id: "scheduler", icon: Clock, label: "Scheduler", shortcut: "\u23189" },

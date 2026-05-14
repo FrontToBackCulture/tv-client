@@ -16,6 +16,7 @@ import {
   ImagePlus,
   Presentation,
   Video,
+  Film,
   Globe,
   FileOutput,
   BookOpen,
@@ -49,6 +50,8 @@ interface FileActionsProps {
   onGenerateImageWithLogo?: () => void;
   onGenerateDeck?: () => void;
   onGenerateVideo?: () => void;
+  onCreateSeedanceConfig?: () => void;
+  onGenerateSeedanceVideo?: () => void;
   onExportPdf?: () => void;
   onPublishIntercom?: () => void;
   onPublishPortal?: () => void;
@@ -56,14 +59,17 @@ interface FileActionsProps {
   isGeneratingImage?: boolean;
   isGeneratingDeck?: boolean;
   isGeneratingVideo?: boolean;
+  isCreatingSeedanceConfig?: boolean;
+  isGeneratingSeedanceVideo?: boolean;
   isExportingPdf?: boolean;
 }
 
 // Get file type from path
-function getFileType(path: string): "nanobanana" | "gamma" | "veo" | "order-form" | "proposal" | "markdown" | "html" | "excel" | "other" {
+function getFileType(path: string): "nanobanana" | "gamma" | "veo" | "seedance" | "order-form" | "proposal" | "markdown" | "html" | "excel" | "other" {
   const lowerPath = path.toLowerCase();
   if (lowerPath.endsWith(".nanobanana.json")) return "nanobanana";
   if (lowerPath.endsWith(".gamma.json")) return "gamma";
+  if (lowerPath.endsWith(".seedance.json")) return "seedance";
   if (lowerPath.endsWith(".veo.json")) return "veo";
   // Check for exportable document files
   const filename = lowerPath.split("/").pop() || "";
@@ -90,12 +96,16 @@ export function FileActions({
   onGenerateImageWithLogo,
   onGenerateDeck,
   onGenerateVideo,
+  onCreateSeedanceConfig,
+  onGenerateSeedanceVideo,
   onExportPdf,
   onPublishIntercom,
   onPublishPortal,
   isGeneratingImage = false,
   isGeneratingDeck = false,
   isGeneratingVideo = false,
+  isCreatingSeedanceConfig = false,
+  isGeneratingSeedanceVideo = false,
   isExportingPdf = false,
 }: FileActionsProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -232,6 +242,34 @@ export function FileActions({
       disabled: isGeneratingVideo,
       loading: isGeneratingVideo,
       dividerAfter: true,
+    });
+  }
+
+  if (fileType === "seedance" && onGenerateSeedanceVideo) {
+    items.push({
+      label: isGeneratingSeedanceVideo ? "Generating..." : "Generate Video",
+      icon: <Film className="w-4 h-4" />,
+      onClick: () => {
+        onGenerateSeedanceVideo();
+        setIsOpen(false);
+      },
+      disabled: isGeneratingSeedanceVideo,
+      loading: isGeneratingSeedanceVideo,
+      dividerAfter: true,
+    });
+  }
+
+  // Create Seedance video config for markdown files
+  if (fileType === "markdown" && onCreateSeedanceConfig) {
+    items.push({
+      label: isCreatingSeedanceConfig ? "Distilling prompt..." : "Create Seedance Config",
+      icon: <Film className="w-4 h-4" />,
+      onClick: () => {
+        onCreateSeedanceConfig();
+        setIsOpen(false);
+      },
+      disabled: isCreatingSeedanceConfig,
+      loading: isCreatingSeedanceConfig,
     });
   }
 

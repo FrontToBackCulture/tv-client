@@ -302,6 +302,12 @@ fn main() {
             commands::tools::nanobanana::nanobanana_parse_config,
             commands::tools::nanobanana::nanobanana_generate_from_file,
             commands::tools::nanobanana::nanobanana_list_models,
+            // Seedance video generation (OpenRouter)
+            commands::tools::seedance::seedance_distill_md,
+            commands::tools::seedance::seedance_create_config,
+            commands::tools::seedance::seedance_submit_video,
+            commands::tools::seedance::seedance_poll_video,
+            commands::tools::seedance::seedance_download_video,
             // Document generation (PDF)
             commands::tools::docgen::generate_order_form_pdf_cmd,
             commands::tools::docgen::generate_proposal_pdf_cmd,
@@ -504,6 +510,7 @@ fn main() {
             // Settings - VAL credentials
             commands::settings::settings_get_val_credentials,
             commands::settings::settings_import_val_credentials,
+            commands::settings::settings_export_val_credentials,
             commands::settings::settings_switch_workspace,
             // Outlook - Auth
             commands::outlook::auth::outlook_auth_start,

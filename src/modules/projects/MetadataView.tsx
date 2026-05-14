@@ -22,7 +22,6 @@ import { toSGTDateString, timeAgoVerbose } from "../../lib/date";
 import { Button } from "../../components/ui";
 import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
 import { PageHeader } from "../../components/PageHeader";
-import { StatsStrip } from "../../components/StatsStrip";
 import { useAppStore } from "../../stores/appStore";
 import { toast } from "../../stores/toastStore";
 import { groupRowStyles, themeStyles } from "../domains/reviewGridStyles";
@@ -199,7 +198,11 @@ export function FieldGrid({ fields, onUpdate, companyId, contacts }: {
 
 type SubTab = "companies" | "contacts" | "initiatives" | "labels" | "users" | "partners"
   | "deal_stage" | "deal_solution" | "company_stage" | "activity_type" | "project_status" | "project_health" | "project_type"
-  | "domain_type" | "initiative_status" | "task_status_type" | "task_statuses";
+  | "domain_type" | "initiative_status" | "task_status_type" | "task_statuses"
+  // Layer 2 classification controlled vocabularies (used by Skills + all 4
+  // artifact tabs — Tables, Queries, Dashboards, Workflows).
+  | "data_category" | "data_sub_category" | "data_type" | "usage_status" | "action"
+  | "data_source" | "source_system" | "solution" | "sitemap_group_1" | "sitemap_group_2" | "tag";
 
 // ── Sent email row with tracking ─────────────────────────────────────────────
 
@@ -973,7 +976,12 @@ export function MetadataView() {
     { field: "created_at", headerName: "Created", width: 110, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString("en-SG", { month: "short", day: "numeric" }) : "" },
   ], []);
 
-  const isLookupTab = ["deal_stage", "deal_solution", "company_stage", "activity_type", "project_status", "project_health", "project_type", "domain_type", "initiative_status", "task_status_type"].includes(subTab);
+  const isLookupTab = [
+    "deal_stage", "deal_solution", "company_stage", "activity_type", "project_status", "project_health", "project_type", "domain_type", "initiative_status", "task_status_type",
+    // Layer 2 classification controlled vocabularies — backed by lookup_values too.
+    "data_category", "data_sub_category", "data_type", "usage_status", "action",
+    "data_source", "source_system", "solution", "sitemap_group_1", "sitemap_group_2", "tag",
+  ].includes(subTab);
   const isTaskStatusTab = subTab === "task_statuses";
   const currentColumns = isTaskStatusTab ? taskStatusColumns : subTab === "companies" ? companyColumns : subTab === "contacts" ? contactColumns : subTab === "partners" ? partnerColumns : subTab === "initiatives" ? initiativeColumns : subTab === "labels" ? labelColumns : isLookupTab ? lookupColumns : userColumns;
   const currentRows = isTaskStatusTab ? taskStatuses : subTab === "companies" ? companyRows : subTab === "contacts" ? contactRows : subTab === "partners" ? partners : subTab === "initiatives" ? initiatives : subTab === "labels" ? labels : isLookupTab ? lookupValues.filter(l => l.type === subTab) : users;
@@ -1044,6 +1052,25 @@ export function MetadataView() {
         { id: "project_health", label: "Health", icon: Settings, count: lookupValues.filter(l => l.type === "project_health").length },
         { id: "project_type", label: "Project Types", icon: Settings, count: lookupValues.filter(l => l.type === "project_type").length },
         { id: "domain_type", label: "Domain Types", icon: Tags, count: lookupValues.filter(l => l.type === "domain_type").length },
+      ],
+    },
+    {
+      // Layer 2 controlled vocabularies — same lookup_values rows that back
+      // the dropdowns in Skills + all 4 artifact tabs (Tables/Queries/
+      // Dashboards/Workflows). Edit here, dropdowns refresh everywhere.
+      label: "Classification",
+      tabs: [
+        { id: "data_category", label: "Data Category", icon: Tags, count: lookupValues.filter(l => l.type === "data_category").length },
+        { id: "data_sub_category", label: "Data Sub-Category", icon: Tags, count: lookupValues.filter(l => l.type === "data_sub_category").length },
+        { id: "data_type", label: "Data Representation", icon: Tags, count: lookupValues.filter(l => l.type === "data_type").length },
+        { id: "usage_status", label: "Status", icon: Settings, count: lookupValues.filter(l => l.type === "usage_status").length },
+        { id: "action", label: "Action", icon: Settings, count: lookupValues.filter(l => l.type === "action").length },
+        { id: "data_source", label: "Data Source", icon: Settings, count: lookupValues.filter(l => l.type === "data_source").length },
+        { id: "source_system", label: "Source System", icon: Settings, count: lookupValues.filter(l => l.type === "source_system").length },
+        { id: "solution", label: "Solution", icon: Settings, count: lookupValues.filter(l => l.type === "solution").length },
+        { id: "sitemap_group_1", label: "Sitemap Grp 1", icon: Settings, count: lookupValues.filter(l => l.type === "sitemap_group_1").length },
+        { id: "sitemap_group_2", label: "Sitemap Grp 2", icon: Settings, count: lookupValues.filter(l => l.type === "sitemap_group_2").length },
+        { id: "tag", label: "Tags", icon: Tag, count: lookupValues.filter(l => l.type === "tag").length },
       ],
     },
   ];
@@ -1126,16 +1153,7 @@ export function MetadataView() {
   return (
     <div className="h-full flex flex-col">
      {!isFullscreen && (
-       <>
         <PageHeader description={lastActivity} />
-        <StatsStrip stats={[
-          { value: companies.length, label: <>companies</>, color: "blue" },
-          { value: contacts.length, label: <>contacts</>, color: "emerald" },
-          { value: initiatives.length, label: <>initiatives</>, color: "amber" },
-          { value: users.length, label: <>users</>, color: "zinc" },
-          { value: partners.length, label: <>partners</>, color: "purple" },
-        ]} />
-       </>
      )}
     <div className={isFullscreen ? "fixed inset-0 z-50 bg-zinc-50 dark:bg-zinc-950 p-4 flex" : "flex-1 flex overflow-hidden px-4 py-4"}>
       <style>{groupRowStyles}{themeStyles}{`

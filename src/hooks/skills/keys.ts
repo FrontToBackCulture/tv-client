@@ -5,4 +5,5 @@ export const skillKeys = {
   list: (filters?: { status?: string; target?: string; category?: string }) =>
     [...skillKeys.all, "list", filters] as const,
   detail: (slug: string) => [...skillKeys.all, "detail", slug] as const,
+  byDomain: (domain: string) => [...skillKeys.all, "by-domain", domain] as const,
 };

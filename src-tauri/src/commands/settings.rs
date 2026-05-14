@@ -54,6 +54,7 @@ pub const KEY_BG_SYNC_OUTLOOK_EMAIL: &str = "bg_sync_outlook_email";
 pub const KEY_BG_SYNC_OUTLOOK_CALENDAR: &str = "bg_sync_outlook_calendar";
 pub const KEY_BG_SYNC_NOTION: &str = "bg_sync_notion";
 pub const KEY_BG_SYNC_PUBLIC_DATA: &str = "bg_sync_public_data";
+pub const KEY_BG_SYNC_GA4: &str = "bg_sync_ga4";
 
 /// Key where the list of registered workspace IDs is stored (JSON array of
 /// strings). Populated by `settings_register_workspace` — Rust background
@@ -403,6 +404,33 @@ pub fn settings_get_val_credentials(
         .get(&format!("val_password_{}", domain))
         .cloned();
     Ok((email, password))
+}
+
+/// Export only the VAL credential keys (val_email_* / val_password_*) to a
+/// JSON file, in the same shape `settings_import_val_credentials` accepts:
+/// `{ "keys": { "val_email_<domain>": "...", "val_password_<domain>": "...", ... } }`.
+/// Distributable to teammates who can then re-import via the VAL Credentials
+/// Import button. Returns the number of domains exported (pairs of email+password).
+#[command]
+pub fn settings_export_val_credentials(file_path: String) -> CmdResult<usize> {
+    let settings = load_settings()?;
+    let mut keys = serde_json::Map::new();
+    let mut domains = std::collections::HashSet::new();
+    for (k, v) in &settings.keys {
+        if v.is_empty() {
+            continue;
+        }
+        if let Some(domain) = k.strip_prefix("val_email_") {
+            keys.insert(k.clone(), serde_json::Value::String(v.clone()));
+            domains.insert(domain.to_string());
+        } else if let Some(domain) = k.strip_prefix("val_password_") {
+            keys.insert(k.clone(), serde_json::Value::String(v.clone()));
+            domains.insert(domain.to_string());
+        }
+    }
+    let payload = serde_json::json!({ "keys": serde_json::Value::Object(keys) });
+    fs::write(&file_path, serde_json::to_string_pretty(&payload)?)?;
+    Ok(domains.len())
 }
 
 /// Import credentials from a val-sync .env file OR a tv-desktop settings JSON

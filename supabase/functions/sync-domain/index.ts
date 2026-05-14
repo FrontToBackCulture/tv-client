@@ -242,30 +242,57 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 6. Call val-services sync API
-    const syncUrl = `${baseUrl}/api/v1/sync?token=${valToken}`;
-    const res = await fetch(syncUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        sub_domain: source,
-      },
-      body: JSON.stringify(syncOpts),
-    });
+    // 6. Call val-services sync API. Retry once with a fresh login if
+    // val-services rejects the cached token as expired — the cached
+    // `token_expires_at` is a 23h heuristic and can lag real invalidation
+    // (rotation, concurrent login, etc.).
+    const postSync = (token: string) =>
+      fetch(`${baseUrl}/api/v1/sync?token=${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", sub_domain: source },
+        body: JSON.stringify(syncOpts),
+      });
 
+    let res = await postSync(valToken);
     if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[sync-domain] val-services error (${res.status}):`, errText);
+      const firstErrText = await res.text();
+      const looksExpired =
+        res.status === 401 ||
+        res.status === 403 ||
+        /jwt\s*expired|token\s*expired|invalid\s*token/i.test(firstErrText);
 
-      await supabase
-        .from("solution_sync_jobs")
-        .update({ status: "error", error: `val-services: ${errText}`, completed_at: new Date().toISOString() })
-        .eq("id", job.id);
+      if (looksExpired) {
+        console.warn(`[sync-domain] val-services rejected cached token (${res.status}); re-logging in and retrying`);
+        await supabase
+          .from("val_domain_credentials")
+          .update({ token_cache: null, token_expires_at: null })
+          .eq("domain", source);
+        const fresh = await loginToVal(
+          baseUrl,
+          (creds as DomainCreds).email,
+          (creds as DomainCreds).encrypted_password,
+        );
+        await supabase
+          .from("val_domain_credentials")
+          .update({ token_cache: fresh.token, token_expires_at: fresh.expiresAt, updated_at: new Date().toISOString() })
+          .eq("domain", source);
+        res = await postSync(fresh.token);
+      }
 
-      return Response.json(
-        { error: `val-services sync failed: ${errText}`, job_id: job.id },
-        { status: 502, headers: corsHeaders }
-      );
+      if (!res.ok) {
+        const errText = res.bodyUsed ? firstErrText : await res.text();
+        console.error(`[sync-domain] val-services error (${res.status}):`, errText);
+
+        await supabase
+          .from("solution_sync_jobs")
+          .update({ status: "error", error: `val-services: ${errText}`, completed_at: new Date().toISOString() })
+          .eq("id", job.id);
+
+        return Response.json(
+          { error: `val-services sync failed: ${errText}`, job_id: job.id },
+          { status: 502, headers: corsHeaders }
+        );
+      }
     }
 
     const syncResult = await res.json();
@@ -273,10 +300,39 @@ Deno.serve(async (req: Request) => {
     console.log(`[sync-domain] Sync queued: ${syncUuid}`);
 
     // 7. Update job — mark as done (val-services accepted and queued the sync)
+    const completedAt = new Date().toISOString();
     await supabase
       .from("solution_sync_jobs")
-      .update({ sync_uuid: syncUuid, status: "done", completed_at: new Date().toISOString() })
+      .update({ sync_uuid: syncUuid, status: "done", completed_at: completedAt })
       .eq("id", job.id);
+
+    // 8. Upsert artifact_deployments rows — single source of truth for
+    // "which lab artifact has been deployed to which client domain".
+    // Normalises plural resource_type ('tables') to singular ('table') so
+    // joins to domain_artifacts (which is singular) work without conversion.
+    // The RPC preserves first_deployed_at across re-syncs.
+    const SINGULAR: Record<string, string> = {
+      tables: "table",
+      queries: "query",
+      workflows: "workflow",
+      dashboards: "dashboard",
+      spaces: "space",
+      zones: "zone",
+    };
+    const singular = SINGULAR[resource_type] ?? resource_type;
+    if (Array.isArray(resource_ids) && resource_ids.length > 0) {
+      const { error: deployErr } = await supabase.rpc("record_artifact_deployments", {
+        p_resource_type: singular,
+        p_master_domain: source,
+        p_target_domain: target,
+        p_master_resource_ids: resource_ids.map((r: string | number) => String(r)),
+        p_sync_uuid: syncUuid,
+      });
+      if (deployErr) {
+        // Non-fatal — the sync itself succeeded; log and continue.
+        console.error("[sync-domain] Failed to record artifact_deployments:", deployErr);
+      }
+    }
 
     return Response.json(
       { job_id: job.id, sync_uuid: syncUuid, status: "done" },

@@ -1,12 +1,13 @@
 // Settings: VAL Credentials View + DomainCredentialRow
 
 import { useState, useCallback } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   Eye,
   EyeOff,
   Check,
   Upload,
+  Download,
   Database,
   CheckCircle2,
   XCircle,
@@ -19,6 +20,7 @@ import {
   useValCredentials,
   useSetValCredentials,
   useValImportCredentials,
+  useValExportCredentials,
   type DiscoveredDomain,
 } from "../../hooks/val-sync";
 
@@ -146,6 +148,7 @@ export function ValCredentialsView() {
   const domainsPath = paths ? `${paths.platform}/domains` : null;
   const domainsQuery = useDiscoverDomains(domainsPath);
   const importCreds = useValImportCredentials();
+  const exportCreds = useValExportCredentials();
 
   const domains = domainsQuery.data ?? [];
 
@@ -166,6 +169,21 @@ export function ValCredentialsView() {
       console.error("File picker error:", e);
     }
   }, [importCreds]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      const filePath = await save({
+        title: "Export VAL credentials",
+        defaultPath: "tv-val-credentials.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (filePath) {
+        exportCreds.mutate(filePath);
+      }
+    } catch (e) {
+      console.error("Save dialog error:", e);
+    }
+  }, [exportCreds]);
 
   if (domainsQuery.isLoading) {
     return <SectionLoading className="flex-1 py-12" />;
@@ -193,9 +211,14 @@ export function ValCredentialsView() {
             Manage login credentials for each VAL domain
           </p>
         </div>
-        <Button variant="secondary" icon={Upload} onClick={handleImportEnv} disabled={importCreds.isPending} loading={importCreds.isPending} title="Import from .env or exported settings JSON">
-          Import
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" icon={Download} onClick={handleExport} disabled={exportCreds.isPending} loading={exportCreds.isPending} title="Export VAL credentials to a JSON file you can share with teammates">
+            Export
+          </Button>
+          <Button variant="secondary" icon={Upload} onClick={handleImportEnv} disabled={importCreds.isPending} loading={importCreds.isPending} title="Import from .env or exported settings JSON">
+            Import
+          </Button>
+        </div>
       </div>
 
       {importCreds.isSuccess && (
@@ -207,6 +230,16 @@ export function ValCredentialsView() {
       {importCreds.isError && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
           {(importCreds.error as Error).message}
+        </div>
+      )}
+      {exportCreds.isSuccess && (
+        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 text-sm">
+          Exported credentials for {exportCreds.data} domain{exportCreds.data !== 1 ? "s" : ""}.
+        </div>
+      )}
+      {exportCreds.isError && (
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
+          {(exportCreds.error as Error).message}
         </div>
       )}
 

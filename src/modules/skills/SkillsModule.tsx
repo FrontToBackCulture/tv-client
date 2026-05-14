@@ -10,12 +10,9 @@ import { useSkillCheckAll } from "./useSkillRegistry";
 import { useSkills } from "../../hooks/skills/useSkills";
 import { SkillReviewGrid } from "./SkillReviewGrid";
 import { SkillDetailPanel } from "./SkillDetailPanel";
-import { PageHeader } from "../../components/PageHeader";
 import { ResizablePanel } from "../../components/ResizablePanel";
 import { RecentChangesPanel } from "../../components/RecentChangesPanel";
-import { StatsStrip } from "../../components/StatsStrip";
 import { DetailLoading } from "../../components/ui/DetailStates";
-import { timeAgoVerbose } from "../../lib/date";
 import type { SkillRegistry, SkillCategory, SkillEntry } from "./useSkillRegistry";
 
 export function SkillsModule() {
@@ -34,28 +31,6 @@ export function SkillsModule() {
     const map: Record<string, string> = {};
     for (const s of skills ?? []) map[s.slug] = s.name;
     return map;
-  }, [skills]);
-
-  const stats = useMemo(() => {
-    const list = skills ?? [];
-    const total = list.length;
-    const active = list.filter((s) => s.status === "active").length;
-    const unverified = list.filter((s) => s.status === "active" && !s.verified).length;
-    const needsWork = list.filter((s) => s.needs_work && s.needs_work.trim().length > 0).length;
-    const stale = list.filter((s) => {
-      if (!s.last_audited) return true;
-      return Date.now() - new Date(s.last_audited).getTime() > 30 * 24 * 60 * 60 * 1000;
-    }).length;
-    return { total, active, unverified, needsWork, stale };
-  }, [skills]);
-
-  const lastActivity = useMemo(() => {
-    let max = 0;
-    for (const s of skills ?? []) {
-      const ts = s.updated_at ? new Date(s.updated_at).getTime() : 0;
-      if (ts > max) max = ts;
-    }
-    return max > 0 ? `Last activity ${timeAgoVerbose(new Date(max).toISOString())}` : undefined;
   }, [skills]);
 
   // Build a SkillRegistry-compatible object from Supabase data — the detail
@@ -95,7 +70,6 @@ export function SkillsModule() {
         platform: Array.isArray(skill.platform) ? skill.platform : [],
         verified: skill.verified,
         rating: skill.rating ?? undefined,
-        last_audited: skill.last_audited ?? undefined,
         owner: skill.owner ?? undefined,
         gallery_pinned: skill.gallery_pinned,
         gallery_order: skill.gallery_order ?? undefined,
@@ -142,16 +116,6 @@ export function SkillsModule() {
 
   return (
     <div className="h-full flex flex-col">
-      <PageHeader description={lastActivity} />
-
-      <StatsStrip stats={[
-        { value: stats.total, label: <>total<br/>skills</>, color: "blue" },
-        { value: stats.active, label: <>active<br/>skills</>, color: "emerald" },
-        { value: stats.unverified, label: <>unverified<br/>active</>, color: stats.unverified > 0 ? "amber" : "zinc" },
-        { value: stats.needsWork, label: <>needs<br/>work</>, color: stats.needsWork > 0 ? "red" : "zinc" },
-        { value: stats.stale, label: <>stale<br/>(30d+)</>, color: stats.stale > 0 ? "amber" : "zinc" },
-      ]} />
-
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 min-w-0">
           <SkillReviewGrid

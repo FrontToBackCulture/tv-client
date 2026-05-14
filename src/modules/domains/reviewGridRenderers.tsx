@@ -150,11 +150,18 @@ export const TagsCellRenderer = (params: ICellRendererParams<ReviewRow>) => {
   addTag(data.usageStatus, "status");
   addTag(data.action, "action");
 
-  if (data.tags) {
-    data.tags.split(",").forEach(tag => {
+  // tags is now text[] (Layer 1 migration). Tolerate legacy comma-separated
+  // strings just in case any caller still hands us the old shape.
+  if (Array.isArray(data.tags)) {
+    for (const tag of data.tags) {
+      const trimmed = String(tag).trim();
+      if (trimmed) addTag(trimmed, "tag");
+    }
+  } else if (typeof data.tags === "string" && data.tags) {
+    for (const tag of (data.tags as string).split(",")) {
       const trimmed = tag.trim();
       if (trimmed) addTag(trimmed, "tag");
-    });
+    }
   }
 
   if (tags.length === 0) {

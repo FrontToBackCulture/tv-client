@@ -1525,11 +1525,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Post-ingestion: map SSIC→industry_tag and SSOC→role_category for new rows
-    try {
-      await supabase.rpc("map_new_job_postings");
-    } catch (_) {
-      // Non-critical — mapping can be run manually if this fails
+    // Post-ingestion: map SSIC→industry_tag and SSOC→role_category for new rows.
+    // Function is bounded to a 14-day window so it stays fast even with backlog.
+    // We surface errors here (instead of swallowing) — silent failure caused tagging to
+    // drift undetected for ~30 days in Apr 2026.
+    const tagStart = Date.now();
+    const { error: tagErr } = await supabase.rpc("map_new_job_postings");
+    const tagDuration = Date.now() - tagStart;
+    if (tagErr) {
+      console.error(`map_new_job_postings failed after ${tagDuration}ms:`, tagErr);
+      await supabase.from("ingestion_log").insert({
+        source_id: "mcf-tag", started_at: new Date(tagStart).toISOString(),
+        completed_at: new Date().toISOString(), duration_ms: tagDuration,
+        rows_upserted: 0, status: "error", error: tagErr.message ?? String(tagErr),
+      });
+    } else {
+      await supabase.from("ingestion_log").insert({
+        source_id: "mcf-tag", started_at: new Date(tagStart).toISOString(),
+        completed_at: new Date().toISOString(), duration_ms: tagDuration,
+        rows_upserted: 0, status: "success", error: null,
+      });
     }
 
     return new Response(JSON.stringify({ results }), {

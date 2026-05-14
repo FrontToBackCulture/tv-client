@@ -6,6 +6,8 @@ import {
   ColDef,
   ColumnState,
   GetRowIdParams,
+  GridApi,
+  GridReadyEvent,
   ModuleRegistry,
   AllCommunityModule,
   CellValueChangedEvent,
@@ -18,7 +20,8 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import { AlertTriangle } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
-import { useClassificationStore } from "../../stores/classificationStore";
+import { useClassificationValues } from "../../hooks/useClassificationValues";
+import { useGridLayouts } from "../../hooks/useGridLayouts";
 
 import type { ReviewResourceType, ReviewRow } from "./reviewTypes";
 import { groupRowStyles, themeStyles } from "./reviewGridStyles";
@@ -48,6 +51,9 @@ export interface ReviewGridProps {
   folderPath: string;
   domainName: string;
   domainSlug?: string | null;
+  /** When set, fetch artifact_deployments for this domain (treated as master)
+   *  and join onto rows so the Deployed To column renders. */
+  masterDomain?: string | null;
   onItemSelect?: (itemPath: string) => void;
   reviewMode?: boolean;
   onRowSelected?: (folderPath: string | null, folderName: string | null, rowData: ReviewRow | null) => void;
@@ -58,17 +64,31 @@ export interface ReviewGridProps {
   externalRows?: ReviewRow[];
   /** Enable cross-domain mode (adds Domain column) */
   crossDomain?: boolean;
-  /** External sidebar filter — narrows rows by view + category/sub-category + (cross-domain) selected domains */
+  /** External sidebar filter — narrows rows by view + category/sub-category +
+   *  (cross-domain) selected domains, plus three multi-select facets that
+   *  match the Skills sidebar UX: clients (deployed-to target domains for
+   *  this artifact), tags (free-text labels), data representations
+   *  (the artifact's `dataType` classification). */
   sidebarFilter?: {
     view: "all" | "active" | "deleted" | "custom" | "configured" | "unconfigured";
     category: string | null;
     subCategory: string | null;
     domains?: string[];
+    clients?: Set<string>;
+    tags?: Set<string>;
+    dataReps?: Set<string>;
   };
   /** Callback that hands the parent the full row list once loaded (for sidebar counts/categories) */
   onRowsLoaded?: (rows: ReviewRow[]) => void;
   /** Surfaced as a toolbar button — opens the dedicated full-screen review route */
   onOpenFullScreen?: () => void;
+  /** Extra action buttons (Fetch/AI/Sync to Portal etc.) rendered inside the
+   *  grid toolbar's right-actions area instead of in a separate page header. */
+  toolbarActions?: React.ReactNode;
+  /** Click handler for Deployed To chips. Receives the target domain, the
+   *  artifact's resource id (table_id for tables), and current drift status.
+   *  Used by the master/Lab view to open a drift diff modal. */
+  onDeploymentChipClick?: (targetDomain: string, resourceId: string, driftStatus: string) => void;
 }
 
 export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function ReviewGrid({
@@ -76,6 +96,7 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
   folderPath,
   domainName,
   domainSlug,
+  masterDomain,
   onItemSelect,
   reviewMode = true,
   onRowSelected,
@@ -87,10 +108,25 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
   sidebarFilter,
   onRowsLoaded,
   onOpenFullScreen,
+  toolbarActions,
+  onDeploymentChipClick,
 }, ref) {
   const gridRef = useRef<AgGridReact>(null);
   const theme = useAppStore((s) => s.theme);
-  const classificationValues = useClassificationStore((s) => s.values);
+  // Stabilise classification data so columnDefs (which depends on it) only
+  // rebuilds when the *content* changes, not whenever React Query hands us
+  // a new reference (placeholder→real swap, or any refetch). AG Grid resets
+  // column state whenever columnDefs identity changes, which was the root
+  // cause of the saved layout snapping back mid-interaction.
+  const { data: classificationData, isPlaceholderData: classificationIsPlaceholder } = useClassificationValues();
+  const classificationStableRef = useRef<typeof classificationData>(classificationData);
+  const classificationValues = useMemo(() => {
+    const next = classificationData;
+    const prev = classificationStableRef.current;
+    if (prev && next && JSON.stringify(prev) === JSON.stringify(next)) return prev;
+    classificationStableRef.current = next;
+    return next;
+  }, [classificationData]);
 
   const isTable = resourceType === "table";
 
@@ -169,11 +205,11 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
     if (!folderPath) return;
     setLoading(true);
     setError(null);
-    loadReviewData(folderPath, resourceType, domainSlug)
+    loadReviewData(folderPath, resourceType, domainSlug, { masterDomain })
       .then(setRows)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load data"))
       .finally(() => setLoading(false));
-  }, [folderPath, resourceType, domainSlug, reloadKey, externalRows]);
+  }, [folderPath, resourceType, domainSlug, reloadKey, externalRows, masterDomain]);
 
   // Notify parent of rows for sidebar counts
   useEffect(() => {
@@ -190,9 +226,13 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
   }, [isFullscreen]);
 
   // Column definitions
+  const showDeployments = !!masterDomain;
   const columnDefs = useMemo<ColDef<ReviewRow>[]>(
-    () => buildReviewColumnDefs(resourceType, { wrapSummary, reviewMode, classificationValues, crossDomain }),
-    [resourceType, wrapSummary, reviewMode, classificationValues, crossDomain]
+    () => buildReviewColumnDefs(resourceType, {
+      wrapSummary, reviewMode, classificationValues, crossDomain, showDeployments,
+      onDeploymentChipClick,
+    }),
+    [resourceType, wrapSummary, reviewMode, classificationValues, crossDomain, showDeployments, onDeploymentChipClick]
   );
 
   const defaultColDef = useMemo<ColDef>(() => ({
@@ -292,7 +332,10 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
     sidebarFilter.view !== "all" ||
     !!sidebarFilter.category ||
     !!sidebarFilter.subCategory ||
-    (sidebarFilter.domains?.length ?? 0) > 0
+    (sidebarFilter.domains?.length ?? 0) > 0 ||
+    (sidebarFilter.clients?.size ?? 0) > 0 ||
+    (sidebarFilter.tags?.size ?? 0) > 0 ||
+    (sidebarFilter.dataReps?.size ?? 0) > 0
   );
   const isExternalFilterPresent = useCallback(() => {
     return reviewFilter !== "all" || sidebarActive;
@@ -327,6 +370,21 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
       if (sidebarFilter.domains && sidebarFilter.domains.length > 0) {
         if (!r.domain || !sidebarFilter.domains.includes(r.domain)) return false;
       }
+      // Clients = "deployed-to" target domains. We're already viewing a
+      // master domain, so this filter narrows the row list to artifacts
+      // that have at least one selected client in their deployments[].
+      if (sidebarFilter.clients && sidebarFilter.clients.size > 0) {
+        const deps = r.deployments ?? [];
+        if (!deps.some((d) => sidebarFilter.clients!.has(d.target_domain))) return false;
+      }
+      if (sidebarFilter.tags && sidebarFilter.tags.size > 0) {
+        const tags = Array.isArray(r.tags) ? r.tags : [];
+        if (!tags.some((t) => sidebarFilter.tags!.has(t))) return false;
+      }
+      if (sidebarFilter.dataReps && sidebarFilter.dataReps.size > 0) {
+        const dt = r.dataType;
+        if (!dt || !sidebarFilter.dataReps.has(dt)) return false;
+      }
     }
     return true;
   }, [reviewFilter, isTable, modifiedRows, sidebarFilter, resourceType]);
@@ -336,58 +394,103 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
     gridRef.current?.api?.onFilterChanged();
   }, [reviewFilter, modifiedRows, sidebarFilter]);
 
-  // Auto-apply default saved layout
-  const lastAppliedPath = useRef<string | null>(null);
+  // Auto-apply the workspace-shared default layout from `grid_layouts`.
+  //
+  // With classificationValues now reference-stable (see classificationStableRef
+  // above), columnDefs identity no longer changes on React Query refetches,
+  // so AG Grid stops resetting state and a single apply is enough. No
+  // timers, no retries.
+  const gridKey = `review-${resourceType}`;
+  const { data: gridLayouts = [] } = useGridLayouts(gridKey);
+  const [gridApi, setGridApi] = useState<GridApi | null>(null);
+  const handleGridReady = useCallback((params: GridReadyEvent) => {
+    setGridApi(params.api);
+  }, []);
 
-  const applyDefaultLayout = useCallback(() => {
-    const api = gridRef.current?.api;
-    if (!api) return;
+  const applyKey = `${gridKey}::${folderPath}`;
+  const appliedFor = useRef<string | null>(null);
 
-    const defaultName = localStorage.getItem("tv-desktop-ag-grid-default-layout");
-    if (!defaultName) return;
-
-    try {
-      const stored = localStorage.getItem("tv-desktop-ag-grid-layouts");
-      if (!stored) return;
-      const layouts = JSON.parse(stored);
-      const layout = layouts[defaultName] as {
-        columnState?: ColumnState[];
-        filterModel?: Record<string, unknown>;
-        rowGroupColumns?: string[];
-      } | undefined;
-      if (!layout?.columnState) return;
-
-      api.applyColumnState({ state: layout.columnState, applyOrder: true });
-      if (isTable && layout.rowGroupColumns?.length) {
-        api.setRowGroupColumns(layout.rowGroupColumns);
-      }
-      if (layout.filterModel) {
-        api.setFilterModel(layout.filterModel);
-      }
-    } catch { /* ignore */ }
-  }, [isTable]);
-
-  // Reset tracking when folderPath changes so layout re-applies
   useEffect(() => {
-    lastAppliedPath.current = null;
-  }, [folderPath]);
-
-  // Apply after data loads
-  useEffect(() => {
+    if (!gridApi) return;
     if (loading || rows.length === 0) return;
-    if (lastAppliedPath.current === folderPath) return;
-    lastAppliedPath.current = folderPath;
+    if (gridLayouts.length === 0) return;
+    if (classificationIsPlaceholder) return;
+    if (appliedFor.current === applyKey) return;
 
-    const timer = setTimeout(applyDefaultLayout, 50);
-    return () => clearTimeout(timer);
-  }, [loading, rows.length, folderPath, applyDefaultLayout]);
+    const def = gridLayouts.find((l) => l.is_default);
+    if (!def) return;
 
-  // Also apply on first data rendered (catches fresh mount where useEffect timing may miss)
-  const handleFirstDataRendered = useCallback(() => {
-    if (lastAppliedPath.current === folderPath) return;
-    lastAppliedPath.current = folderPath;
-    applyDefaultLayout();
-  }, [folderPath, applyDefaultLayout]);
+    if (isTable) gridApi.setRowGroupColumns([]);
+    gridApi.applyColumnState({ state: def.column_state as ColumnState[], applyOrder: true });
+    if (def.row_group_columns?.length) {
+      gridApi.setRowGroupColumns(def.row_group_columns);
+    }
+    if (def.filter_model && Object.keys(def.filter_model).length) {
+      gridApi.setFilterModel(def.filter_model);
+    }
+    appliedFor.current = applyKey;
+  }, [gridApi, loading, rows.length, gridLayouts, applyKey, isTable, classificationIsPlaceholder]);
+
+  // ── State preservation across columnDefs rebuilds ─────────────────────────
+  // Adding a new classification value (e.g., a new Data Representation) goes
+  // mutation → invalidate `classification-values` → refetch → new content.
+  // That rebuilds columnDefs (cellEditorParams.values now contains the new
+  // value), and AG Grid's reconciliation drops runtime column state — width,
+  // hide, sort, pinned, filter — even though colIds match. We mirror the
+  // current state into a ref on every relevant grid event, then restore it
+  // in a microtask after columnDefs change so the user's layout survives.
+  const lastStateRef = useRef<{
+    state: ColumnState[];
+    filterModel: Record<string, unknown>;
+    rowGroupColumns: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!gridApi) return;
+    const sync = () => {
+      if (gridApi.isDestroyed?.()) return;
+      lastStateRef.current = {
+        state: gridApi.getColumnState() as ColumnState[],
+        filterModel: (gridApi.getFilterModel() ?? {}) as Record<string, unknown>,
+        rowGroupColumns: gridApi.getRowGroupColumns().map((c) => c.getColId()),
+      };
+    };
+    gridApi.addEventListener("columnMoved", sync);
+    gridApi.addEventListener("columnVisible", sync);
+    gridApi.addEventListener("columnResized", sync);
+    gridApi.addEventListener("columnPinned", sync);
+    gridApi.addEventListener("sortChanged", sync);
+    gridApi.addEventListener("filterChanged", sync);
+    gridApi.addEventListener("columnRowGroupChanged", sync);
+    return () => {
+      gridApi.removeEventListener("columnMoved", sync);
+      gridApi.removeEventListener("columnVisible", sync);
+      gridApi.removeEventListener("columnResized", sync);
+      gridApi.removeEventListener("columnPinned", sync);
+      gridApi.removeEventListener("sortChanged", sync);
+      gridApi.removeEventListener("filterChanged", sync);
+      gridApi.removeEventListener("columnRowGroupChanged", sync);
+    };
+  }, [gridApi]);
+
+  // Restore captured state whenever columnDefs identity changes — except when
+  // the user is mid-edit (don't yank the editor closed).
+  useEffect(() => {
+    if (!gridApi) return;
+    if (!lastStateRef.current) return;
+    const editing = gridApi.getEditingCells?.() ?? [];
+    if (editing.length > 0) return;
+    Promise.resolve().then(() => {
+      if (gridApi.isDestroyed?.()) return;
+      const stored = lastStateRef.current;
+      if (!stored) return;
+      gridApi.applyColumnState({ state: stored.state, applyOrder: true });
+      gridApi.setFilterModel(stored.filterModel);
+      if (stored.rowGroupColumns.length) {
+        gridApi.setRowGroupColumns(stored.rowGroupColumns);
+      }
+    });
+  }, [columnDefs, gridApi]);
 
   const getRowHeight = useCallback((params: { node: { group?: boolean } }) => {
     return params.node.group ? 44 : 36;
@@ -436,7 +539,9 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
         reviewFilter={reviewFilter}
         setReviewFilter={setReviewFilter}
         isTable={isTable}
+        resourceType={resourceType}
         onOpenFullScreen={onOpenFullScreen}
+        toolbarActions={toolbarActions}
       />
 
       {/* AG Grid */}
@@ -444,7 +549,20 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
         className={`${theme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} flex-1 min-h-0 overflow-hidden`}
         style={{ width: "100%" }}
       >
-        <style>{themeStyles}</style>
+        <style>{themeStyles}{`
+          /* Scope tagging — common Layer 1 metadata vs artifact-specific.
+             Same colour scheme as the Skills grid for cross-tab consistency. */
+          .ag-theme-alpine .ag-header-cell.scope-common,
+          .ag-theme-alpine-dark .ag-header-cell.scope-common {
+            background-color: rgba(20, 184, 166, 0.08);
+            box-shadow: inset 0 -2px 0 rgba(20, 184, 166, 0.5);
+          }
+          .ag-theme-alpine .ag-header-cell.scope-specific,
+          .ag-theme-alpine-dark .ag-header-cell.scope-specific {
+            background-color: rgba(168, 85, 247, 0.05);
+            box-shadow: inset 0 -2px 0 rgba(168, 85, 247, 0.4);
+          }
+        `}</style>
         <AgGridReact<ReviewRow>
           ref={gridRef}
           theme="legacy"
@@ -457,7 +575,7 @@ export const ReviewGrid = forwardRef<ReviewGridHandle, ReviewGridProps>(function
           getRowHeight={isTable ? getRowHeight : undefined}
           animateRows={isTable}
           rowSelection={reviewMode ? "single" : "multiple"}
-          onFirstDataRendered={handleFirstDataRendered}
+          onGridReady={handleGridReady}
           onRowDoubleClicked={handleRowDoubleClicked}
           onRowClicked={handleRowClicked}
           onCellValueChanged={handleCellValueChanged}

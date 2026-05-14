@@ -26,7 +26,7 @@ const ProductModule = lazy(() => import("./modules/product/ProductModule").then(
 const PortalModule = lazy(() => import("./modules/portal").then(m => ({ default: m.PortalModule })));
 const SchedulerModule = lazy(() => import("./modules/scheduler").then(m => ({ default: m.SchedulerModule })));
 const ReposModule = lazy(() => import("./modules/repos").then(m => ({ default: m.ReposModule })));
-const SkillsModule = lazy(() => import("./modules/skills/SkillsModule").then(m => ({ default: m.SkillsModule })));
+const LabModule = lazy(() => import("./modules/lab/LabModule").then(m => ({ default: m.LabModule })));
 const McpToolsModule = lazy(() => import("./modules/mcp-tools/McpToolsModule").then(m => ({ default: m.McpToolsModule })));
 const EmailModule = lazy(() => import("./modules/email/EmailModule").then(m => ({ default: m.EmailModule })));
 const GalleryModule = lazy(() => import("./modules/gallery").then(m => ({ default: m.GalleryModule })));
@@ -80,7 +80,7 @@ const modules: Record<ModuleId, React.ComponentType> = {
   analytics: AnalyticsModule,
   product: ProductModule,
   gallery: GalleryModule,
-  skills: SkillsModule,
+  lab: LabModule,
   "mcp-tools": McpToolsModule,
   portal: PortalModule,
   scheduler: SchedulerModule,
@@ -115,7 +115,7 @@ function prefetchLazyChunks() {
     () => import("./modules/portal"),
     () => import("./modules/scheduler"),
     () => import("./modules/repos"),
-    () => import("./modules/skills/SkillsModule"),
+    () => import("./modules/lab/LabModule"),
     () => import("./modules/mcp-tools/McpToolsModule"),
     () => import("./modules/email/EmailModule"),
     () => import("./modules/gallery"),
@@ -318,7 +318,7 @@ export default function App() {
   useEffect(() => {
     if (!teamConfigLoaded) return;
     if (!isModuleVisible(activeTab, { ignoreMode: true })) {
-      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "skills", "mcp-tools", "portal", "scheduler", "repos", "email", "blog", "s3browser", "referrals"];
+      const allModuleIds: ModuleId[] = ["home", "library", "projects", "metadata", "work", "inbox", "calendar", "chat", "crm", "domains", "product", "gallery", "lab", "mcp-tools", "portal", "scheduler", "repos", "email", "blog", "s3browser", "referrals"];
       const firstVisible = allModuleIds.find((id) => isModuleVisible(id, { ignoreMode: true }));
       if (firstVisible) {
         openTab(firstVisible);
@@ -463,7 +463,7 @@ export default function App() {
           "product",
           "metadata",
           "gallery",
-          "skills",
+          "lab",
           "scheduler",
         ];
         openTab(moduleKeys[parseInt(e.key) - 1]);

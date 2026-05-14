@@ -188,86 +188,154 @@ fn extract_sql_from_plugin(plugin: &Value) -> Vec<(String, String)> {
 // Extract operations
 // ============================================================================
 
-fn extract_queries_internal(global_path: &str) -> CmdResult<usize> {
+/// Shared loop for the three "split a big JSON list into per-item files"
+/// extractors. Each item gets one definition.json on disk and one event
+/// fired (`val-extract-<type>-progress`) so the frontend can show a
+/// counter, same UX as the tables extractor. These are file-IO-bound (no
+/// per-item VAL API calls), so they're fast — but per-item events let the
+/// user see N/M progress instead of one opaque "fetching" line.
+fn extract_simple_internal(
+    domain: &str,
+    items: &[serde_json::Value],
+    output_dir: &str,
+    item_prefix: &str,
+    id_keys: &[&str],
+    event_name: &str,
+    app: Option<&tauri::AppHandle>,
+) -> CmdResult<usize> {
+    use tauri::Emitter;
+
+    let total = items.len();
+    if let Some(a) = app {
+        let _ = a.emit(
+            event_name,
+            serde_json::json!({
+                "domain": domain,
+                "stage": "starting",
+                "done": 0,
+                "total": total,
+            }),
+        );
+    }
+
+    let mut count: usize = 0;
+    for item in items {
+        let id = item
+            .get(id_keys[0])
+            .or_else(|| id_keys.get(1).and_then(|k| item.get(k)))
+            .and_then(|v| v.as_u64().map(|n| n.to_string()).or_else(|| v.as_str().map(|s| s.to_string())))
+            .unwrap_or_default();
+        if id.is_empty() {
+            // Still emit a progress tick for the bookkeeping count below;
+            // skipping silently makes the "done" total look wrong.
+            continue;
+        }
+
+        let path = format!("{}/{}_{}/definition.json", output_dir, item_prefix, id);
+        let success = write_json(&path, item).is_ok();
+        if success {
+            count += 1;
+        }
+
+        if let Some(a) = app {
+            let _ = a.emit(
+                event_name,
+                serde_json::json!({
+                    "domain": domain,
+                    "stage": "fetching",
+                    "id": id,
+                    "done": count,
+                    "total": total,
+                    "ok": success,
+                }),
+            );
+        }
+    }
+
+    if let Some(a) = app {
+        let _ = a.emit(
+            event_name,
+            serde_json::json!({
+                "domain": domain,
+                "stage": "done",
+                "done": count,
+                "total": total,
+                "succeeded": count,
+            }),
+        );
+    }
+
+    Ok(count)
+}
+
+fn extract_queries_internal(
+    domain: &str,
+    global_path: &str,
+    app: Option<&tauri::AppHandle>,
+) -> CmdResult<usize> {
     let input = format!("{}/schema/all_queries.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "queries");
-
-    let output_dir = format!("{}/queries", global_path);
-    let mut count = 0;
-
-    for item in &items {
-        let id = item
-            .get("id")
-            .or_else(|| item.get("query_id"))
-            .and_then(|v| v.as_u64().map(|n| n.to_string()).or_else(|| v.as_str().map(|s| s.to_string())))
-            .unwrap_or_default();
-        if id.is_empty() {
-            continue;
-        }
-
-        let path = format!("{}/query_{}/definition.json", output_dir, id);
-        write_json(&path, item)?;
-        count += 1;
-    }
-
-    Ok(count)
+    extract_simple_internal(
+        domain,
+        &items,
+        &format!("{}/queries", global_path),
+        "query",
+        &["id", "query_id"],
+        "val-extract-queries-progress",
+        app,
+    )
 }
 
-fn extract_workflows_internal(global_path: &str) -> CmdResult<usize> {
+fn extract_workflows_internal(
+    domain: &str,
+    global_path: &str,
+    app: Option<&tauri::AppHandle>,
+) -> CmdResult<usize> {
     let input = format!("{}/schema/all_workflows.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "workflows");
-
-    let output_dir = format!("{}/workflows", global_path);
-    let mut count = 0;
-
-    for item in &items {
-        let id = item
-            .get("id")
-            .or_else(|| item.get("workflow_id"))
-            .and_then(|v| v.as_u64().map(|n| n.to_string()).or_else(|| v.as_str().map(|s| s.to_string())))
-            .unwrap_or_default();
-        if id.is_empty() {
-            continue;
-        }
-
-        let path = format!("{}/workflow_{}/definition.json", output_dir, id);
-        write_json(&path, item)?;
-        count += 1;
-    }
-
-    Ok(count)
+    extract_simple_internal(
+        domain,
+        &items,
+        &format!("{}/workflows", global_path),
+        "workflow",
+        &["id", "workflow_id"],
+        "val-extract-workflows-progress",
+        app,
+    )
 }
 
-fn extract_dashboards_internal(global_path: &str) -> CmdResult<usize> {
+fn extract_dashboards_internal(
+    domain: &str,
+    global_path: &str,
+    app: Option<&tauri::AppHandle>,
+) -> CmdResult<usize> {
     let input = format!("{}/schema/all_dashboards.json", global_path);
     let data = read_json(&input)?;
     let items = extract_array(&data, "dashboards");
-
-    let output_dir = format!("{}/dashboards", global_path);
-    let mut count = 0;
-
-    for item in &items {
-        let id = item
-            .get("id")
-            .or_else(|| item.get("dashboard_id"))
-            .and_then(|v| v.as_u64().map(|n| n.to_string()).or_else(|| v.as_str().map(|s| s.to_string())))
-            .unwrap_or_default();
-        if id.is_empty() {
-            continue;
-        }
-
-        let path = format!("{}/dashboard_{}/definition.json", output_dir, id);
-        write_json(&path, item)?;
-        count += 1;
-    }
-
-    Ok(count)
+    extract_simple_internal(
+        domain,
+        &items,
+        &format!("{}/dashboards", global_path),
+        "dashboard",
+        &["id", "dashboard_id"],
+        "val-extract-dashboards-progress",
+        app,
+    )
 }
 
 /// Tables: recursive tree traversal + per-table API fetch
-async fn extract_tables_internal(domain: &str, global_path: &str) -> CmdResult<usize> {
+async fn extract_tables_internal(
+    domain: &str,
+    global_path: &str,
+    app: Option<&tauri::AppHandle>,
+) -> CmdResult<usize> {
+    use futures::stream::{self, StreamExt};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tauri::Emitter;
+
     let input = format!("{}/schema/all_tables.json", global_path);
     let data = read_json(&input)?;
 
@@ -283,34 +351,106 @@ async fn extract_tables_internal(domain: &str, global_path: &str) -> CmdResult<u
         extract_tables_from_tree(&data, &mut tables);
     }
 
+    // Dedupe by table_name — admin tree exposes the same table under
+    // multiple zones, and with concurrent fetches that would race writes
+    // to the same `definition.json`.
+    let mut seen = std::collections::HashSet::new();
+    let table_names: Vec<String> = tables
+        .iter()
+        .filter_map(|t| t.get("table_name").and_then(|v| v.as_str()).map(String::from))
+        .filter(|name| seen.insert(name.clone()))
+        .collect();
+
     let domain_config = get_domain_config(domain)?;
-    let base_url = format!("https://{}.thinkval.io", domain_config.api_domain());
+    let base_url = Arc::new(format!("https://{}.thinkval.io", domain_config.api_domain()));
     let (token, _) = auth::ensure_auth(domain).await?;
+    let token = Arc::new(token);
+    let output_dir = Arc::new(format!("{}/data_models", global_path));
+    let total = table_names.len();
 
-    let output_dir = format!("{}/data_models", global_path);
-    let mut count = 0;
+    if let Some(a) = app {
+        let _ = a.emit(
+            "val-extract-tables-progress",
+            serde_json::json!({
+                "domain": domain,
+                "stage": "starting",
+                "done": 0,
+                "total": total,
+            }),
+        );
+    }
 
-    for table in &tables {
-        let table_name = match table.get("table_name").and_then(|t| t.as_str()) {
-            Some(name) => name,
-            None => continue,
-        };
+    // Bounded concurrency. 8 mirrors the val-sync-tables edge function and
+    // is the sweet spot in testing — higher rates trigger 503s from VAL.
+    const CONCURRENCY: usize = 8;
+    let counter = Arc::new(AtomicUsize::new(0));
+    let domain_owned = domain.to_string();
 
-        let sanitized = sanitize_table_name(table_name);
-
-        // Fetch full table definition from API
-        let definition = match val_api_fetch(&base_url, &token, "data-model", Some(table_name)).await {
-            Ok(def) => def,
-            Err(e) => {
-                // Log error but continue with other tables
-                eprintln!("Failed to fetch table {}: {}", table_name, e);
-                continue;
+    let results: Vec<bool> = stream::iter(table_names.into_iter())
+        .map(|table_name| {
+            let base_url = base_url.clone();
+            let token = token.clone();
+            let output_dir = output_dir.clone();
+            let counter = counter.clone();
+            let app = app.cloned();
+            let domain = domain_owned.clone();
+            async move {
+                let success = match val_api_fetch(&base_url, &token, "data-model", Some(&table_name)).await {
+                    Ok(definition) => {
+                        let sanitized = sanitize_table_name(&table_name);
+                        let path = format!("{}/table_{}/definition.json", output_dir, sanitized);
+                        match write_json(&path, &definition) {
+                            Ok(()) => true,
+                            Err(e) => {
+                                eprintln!("write_json failed for {}: {}", table_name, e);
+                                false
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to fetch table {}: {}", table_name, e);
+                        false
+                    }
+                };
+                let done = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                // Emit every table for fine-grained progress. Volume is
+                // bounded by total tables (~1.3k for lab) and frontend
+                // events are cheap; the alternative (every Nth) makes the
+                // log feel choppy.
+                if let Some(a) = &app {
+                    let _ = a.emit(
+                        "val-extract-tables-progress",
+                        serde_json::json!({
+                            "domain": domain,
+                            "stage": "fetching",
+                            "table": table_name,
+                            "done": done,
+                            "total": total,
+                            "ok": success,
+                        }),
+                    );
+                }
+                success
             }
-        };
+        })
+        .buffer_unordered(CONCURRENCY)
+        .collect()
+        .await;
 
-        let path = format!("{}/table_{}/definition.json", output_dir, sanitized);
-        write_json(&path, &definition)?;
-        count += 1;
+    let count = results.iter().filter(|s| **s).count();
+
+    if let Some(a) = app {
+        let _ = a.emit(
+            "val-extract-tables-progress",
+            serde_json::json!({
+                "domain": domain,
+                "stage": "done",
+                "done": total,
+                "total": total,
+                "succeeded": count,
+                "failed": total - count,
+            }),
+        );
     }
 
     Ok(count)
@@ -531,15 +671,26 @@ fn extract_calc_fields_internal(global_path: &str) -> CmdResult<usize> {
 // ============================================================================
 
 pub async fn run_extract(domain: &str, extract_type: &str) -> CmdResult<ExtractResult> {
+    run_extract_with_app(domain, extract_type, None).await
+}
+
+/// Same as `run_extract` but optionally emits Tauri events for fine-grained
+/// progress. Used by the `val_extract_tables` command — non-Tauri callers
+/// (sync_all from automation, scheduled jobs) keep using `run_extract`.
+pub async fn run_extract_with_app(
+    domain: &str,
+    extract_type: &str,
+    app: Option<&tauri::AppHandle>,
+) -> CmdResult<ExtractResult> {
     let start = Instant::now();
     let domain_config = get_domain_config(domain)?;
     let global_path = &domain_config.global_path;
 
     let count = match extract_type {
-        "queries" => extract_queries_internal(global_path)?,
-        "workflows" => extract_workflows_internal(global_path)?,
-        "dashboards" => extract_dashboards_internal(global_path)?,
-        "tables" => extract_tables_internal(domain, global_path).await?,
+        "queries" => extract_queries_internal(domain, global_path, app)?,
+        "workflows" => extract_workflows_internal(domain, global_path, app)?,
+        "dashboards" => extract_dashboards_internal(domain, global_path, app)?,
+        "tables" => extract_tables_internal(domain, global_path, app).await?,
         "sql" => extract_sql_internal(global_path)?,
         "calc-fields" => extract_calc_fields_internal(global_path)?,
         _ => return Err(CommandError::Internal(format!("Unknown extract type: {}", extract_type))),
@@ -564,23 +715,35 @@ pub async fn run_extract(domain: &str, extract_type: &str) -> CmdResult<ExtractR
 // ============================================================================
 
 #[command]
-pub async fn val_extract_queries(domain: String) -> CmdResult<ExtractResult> {
-    run_extract(&domain, "queries").await
+pub async fn val_extract_queries(
+    app: tauri::AppHandle,
+    domain: String,
+) -> CmdResult<ExtractResult> {
+    run_extract_with_app(&domain, "queries", Some(&app)).await
 }
 
 #[command]
-pub async fn val_extract_workflows(domain: String) -> CmdResult<ExtractResult> {
-    run_extract(&domain, "workflows").await
+pub async fn val_extract_workflows(
+    app: tauri::AppHandle,
+    domain: String,
+) -> CmdResult<ExtractResult> {
+    run_extract_with_app(&domain, "workflows", Some(&app)).await
 }
 
 #[command]
-pub async fn val_extract_dashboards(domain: String) -> CmdResult<ExtractResult> {
-    run_extract(&domain, "dashboards").await
+pub async fn val_extract_dashboards(
+    app: tauri::AppHandle,
+    domain: String,
+) -> CmdResult<ExtractResult> {
+    run_extract_with_app(&domain, "dashboards", Some(&app)).await
 }
 
 #[command]
-pub async fn val_extract_tables(domain: String) -> CmdResult<ExtractResult> {
-    run_extract(&domain, "tables").await
+pub async fn val_extract_tables(
+    app: tauri::AppHandle,
+    domain: String,
+) -> CmdResult<ExtractResult> {
+    run_extract_with_app(&domain, "tables", Some(&app)).await
 }
 
 #[command]

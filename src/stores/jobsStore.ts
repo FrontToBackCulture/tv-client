@@ -4,12 +4,26 @@
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
 
+export interface BackgroundJobLogEntry {
+  /** ms since startedAt — keeps storage compact and lets the UI render
+   *  relative timestamps without re-parsing. */
+  t: number;
+  message: string;
+  /** Optional kind so the UI can colour log lines (info/warn/error). */
+  kind?: "info" | "warn" | "error";
+}
+
 export interface BackgroundJob {
   id: string;
   name: string;
   status: "running" | "completed" | "failed";
   progress?: number; // 0-100
+  /** Latest message (also rendered as the headline in the jobs panel). */
   message?: string;
+  /** Append-only history of message changes. Lets the user expand a job in
+   *  the Jobs panel and see the timeline of progress updates without
+   *  needing per-job custom UI. */
+  log?: BackgroundJobLogEntry[];
   startedAt: Date;
   completedAt?: Date;
 }
@@ -21,7 +35,14 @@ interface JobsState {
   // Actions
   hydrate: () => Promise<void>;
   addJob: (job: Omit<BackgroundJob, "startedAt">) => void;
-  updateJob: (id: string, updates: Partial<BackgroundJob>) => void;
+  /** Update a job. Pass `silent: true` for high-frequency progress ticks
+   *  that should overwrite the message without spamming the log timeline
+   *  (e.g., per-table fetch progress at 10+ updates/second). */
+  updateJob: (
+    id: string,
+    updates: Partial<BackgroundJob>,
+    opts?: { silent?: boolean },
+  ) => void;
   removeJob: (id: string) => void;
   clearCompleted: () => void;
 }
@@ -105,21 +126,48 @@ export const useJobsStore = create<JobsState>((set, get) => ({
       });
   },
 
-  updateJob: (id, updates) => {
+  updateJob: (id, updates, opts) => {
+    const silent = opts?.silent === true;
     set((state) => ({
-      jobs: state.jobs.map((job) =>
-        job.id === id
-          ? {
-              ...job,
-              ...updates,
-              completedAt:
-                updates.status === "completed" || updates.status === "failed"
-                  ? new Date()
-                  : job.completedAt,
-            }
-          : job
-      ),
+      jobs: state.jobs.map((job) => {
+        if (job.id !== id) return job;
+        // Auto-append to log whenever the message changes — that gives the
+        // user a step-by-step history they can review by clicking the job.
+        // Suppressed when `silent: true` (used for high-frequency progress
+        // updates that would otherwise flood the timeline). An explicit
+        // `log` in updates is always honoured.
+        let nextLog = job.log;
+        if (updates.log !== undefined) {
+          nextLog = updates.log;
+        } else if (
+          !silent &&
+          updates.message !== undefined &&
+          updates.message !== job.message
+        ) {
+          const entry: BackgroundJobLogEntry = {
+            t: Date.now() - job.startedAt.getTime(),
+            message: updates.message,
+            kind: updates.status === "failed" ? "error" : "info",
+          };
+          nextLog = [...(job.log ?? []), entry];
+        }
+        return {
+          ...job,
+          ...updates,
+          log: nextLog,
+          completedAt:
+            updates.status === "completed" || updates.status === "failed"
+              ? new Date()
+              : job.completedAt,
+        };
+      }),
     }));
+
+    // Skip Supabase persistence on silent updates — they're high-frequency
+    // ticker writes (per-table progress events) and would generate hundreds
+    // of pointless round-trips. The next non-silent update will catch the
+    // DB up to the latest state.
+    if (silent) return;
 
     // Persist to Supabase — note: job_runs.status uses "success" not "completed"
     const patch: Record<string, unknown> = {};

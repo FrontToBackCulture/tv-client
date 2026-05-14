@@ -43,7 +43,7 @@ interface TeamConfigState {
   isAdmin: (login: string) => boolean;
 }
 
-const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "domains", "skills"];
+const DEFAULT_VISIBLE_MODULES: ModuleId[] = ["home", "library", "projects", "domains", "lab"];
 
 // Admin identifiers — GitHub usernames or Microsoft emails
 const ADMIN_LOGINS = new Set(["melvinFTBC", "melvinwang", "melvin@thinkval.com"]);
@@ -54,10 +54,17 @@ const ADMIN_LOGINS = new Set(["melvinFTBC", "melvinwang", "melvin@thinkval.com"]
 // transparent to existing team members.
 const LEGACY_PROJECT_MODULES = new Set(["workspace"]);
 
+// "skills" was folded into "lab" — anyone who had skills access should now
+// see Lab (which contains Skills as a tab plus Tables/Workflows/Queries/Dashboards).
+const LEGACY_MODULE_RENAMES: Record<string, ModuleId> = {
+  skills: "lab",
+};
+
 function migrateVisibleModules(modules: string[] | null): ModuleId[] | null {
   if (!modules) return null;
   const filtered = modules.filter((m) => !LEGACY_PROJECT_MODULES.has(m));
-  const set = new Set(filtered);
+  const renamed = filtered.map((m) => LEGACY_MODULE_RENAMES[m] ?? m);
+  const set = new Set(renamed);
   if (set.has("projects")) {
     set.add("work");
     set.add("crm");

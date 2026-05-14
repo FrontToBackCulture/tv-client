@@ -32,7 +32,6 @@ export interface SkillEntry {
   platform?: string[];
   verified?: boolean;
   rating?: number;
-  last_audited?: string;
   owner?: string;
   gallery_pinned?: boolean;
   gallery_order?: number;

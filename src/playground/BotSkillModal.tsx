@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useListDirectory, useReadFile, useWriteFile } from "../hooks/useFiles";
 import { cn } from "../lib/cn";
-import { toSGTDateString } from "../lib/date";
 import { MarkdownViewer } from "../modules/library/MarkdownViewer";
 import { useSkillRegistry } from "../modules/skills/useSkillRegistry";
 import { useUpdateSkill } from "../hooks/skills/useSkills";
@@ -103,12 +102,13 @@ export function SkillModal({
   const registry = registryQuery.data;
   const regEntry = registry?.skills[skillName];
   const currentStatus: SkillStatus = regEntry?.status ?? "active";
-  const lastRevised = regEntry?.last_audited ?? null;
+  // last_audited was dropped in the Layer 1 metadata alignment.
+  // updated_at on the skills row is now the implicit "last revised" signal.
+  const lastRevised: string | null = null;
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const handleStatusChange = (newStatus: SkillStatus) => {
-    const today = toSGTDateString();
-    updateSkill.mutate({ slug: skillName, updates: { status: newStatus, last_audited: today } });
+    updateSkill.mutate({ slug: skillName, updates: { status: newStatus } });
     setShowStatusMenu(false);
   };
 

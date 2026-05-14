@@ -19,7 +19,7 @@ import {
 import { DiscussionPanel } from "../../components/discussions/DiscussionPanel";
 import { useDiscussionCount } from "../../hooks/useDiscussions";
 import { cn } from "../../lib/cn";
-import { useClassificationStore } from "../../stores/classificationStore";
+import { useClassificationMap } from "../../hooks/useClassificationValues";
 import { formatDateFull as formatDate } from "../../lib/date";
 import type { ArtifactType, ReviewRow as ArtifactRow } from "./reviewTypes";
 
@@ -31,23 +31,21 @@ interface ArtifactDetailPreviewProps {
   onNavigate?: (path: string) => void;
 }
 
-// TagsInput component — same as TableDetailPreview
+// TagsInput — takes/emits string[] (Layer 1 metadata alignment changed
+// domain_artifacts.tags from comma-separated text to text[]).
 function TagsInput({
   value,
   onChange,
   suggestions,
 }: {
-  value: string;
-  onChange: (val: string) => void;
+  value: string[] | null;
+  onChange: (val: string[]) => void;
   suggestions: readonly string[];
 }) {
   const [inputValue, setInputValue] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const tags = useMemo(
-    () => (value ? value.split(",").map((t) => t.trim()).filter(Boolean) : []),
-    [value]
-  );
+  const tags = useMemo(() => (Array.isArray(value) ? value : []), [value]);
 
   const filteredSuggestions = useMemo(
     () =>
@@ -60,16 +58,14 @@ function TagsInput({
   const addTag = (tag: string) => {
     const trimmed = tag.trim();
     if (trimmed && !tags.includes(trimmed)) {
-      const newTags = [...tags, trimmed].join(", ");
-      onChange(newTags);
+      onChange([...tags, trimmed]);
     }
     setInputValue("");
     setShowSuggestions(false);
   };
 
   const removeTag = (tagToRemove: string) => {
-    const newTags = tags.filter((t) => t !== tagToRemove).join(", ");
-    onChange(newTags);
+    onChange(tags.filter((t) => t !== tagToRemove));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -250,7 +246,7 @@ export function ArtifactDetailPreview({
   onFieldChange,
   onNavigate,
 }: ArtifactDetailPreviewProps) {
-  const classificationValues = useClassificationStore((s) => s.values);
+  const classificationValues = useClassificationMap();
   const [showDiscussions, setShowDiscussions] = useState(false);
 
   // Entity ID: domain/resourceType/name (extracted from folder path)
@@ -462,8 +458,8 @@ export function ArtifactDetailPreview({
 
             <FieldGroup label="Tags">
               <TagsInput
-                value={row.tags || ""}
-                onChange={handleChange("tags")}
+                value={row.tags ?? null}
+                onChange={(next) => onFieldChange?.("tags", next as unknown as string)}
                 suggestions={classificationValues.tags}
               />
             </FieldGroup>

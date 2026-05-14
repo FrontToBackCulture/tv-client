@@ -895,23 +895,68 @@ pub async fn skill_check_all(
     let kb = &state.knowledge_path;
     let skills_dir = resolve_skills_dir(kb, &skills_folder);
 
-    // Load all skills from Supabase
-    let db_skills = load_skills_from_db().await.unwrap_or_default();
-    if db_skills.is_empty() {
-        return Ok(Vec::new());
+    let mut dbg_lines: Vec<String> = Vec::new();
+    dbg_lines.push(format!("kb={}", kb));
+    dbg_lines.push(format!("skills_dir={}", skills_dir.display()));
+
+    // Load all skills from Supabase. If the load fails (auth, network, RLS),
+    // fall back to scanning the master `_skills/` directory itself so the
+    // drift scans below still have a registry to filter against — otherwise
+    // every chip would show "drift unknown" the moment Supabase blips.
+    let db_skills = match load_skills_from_db().await {
+        Ok(map) => {
+            dbg_lines.push(format!("loaded {} skills from db", map.len()));
+            map
+        }
+        Err(e) => {
+            dbg_lines.push(format!("load_skills_from_db FAILED: {} — falling back to filesystem", e));
+            BTreeMap::new()
+        }
+    };
+    let mut registry_skills = db_skills;
+    if registry_skills.is_empty() {
+        if let Ok(entries) = fs::read_dir(&skills_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !entry.path().is_dir() || name.starts_with('.') || name.starts_with('_') {
+                    continue;
+                }
+                registry_skills.insert(name, SkillEntry {
+                    name: String::new(),
+                    description: String::new(),
+                    category: String::new(),
+                    target: String::new(),
+                    status: String::new(),
+                    command: None,
+                    domain: None,
+                    verified: None,
+                    rating: None,
+                    last_audited: None,
+                    needs_work: None,
+                    work_notes: None,
+                    action: None,
+                    outcome: None,
+                    gallery_pinned: None,
+                    gallery_order: None,
+                    has_demo: None,
+                    has_examples: None,
+                    has_deck: None,
+                    has_guide: None,
+                    distributions: Vec::new(),
+                });
+            }
+        }
+        dbg_lines.push(format!("filesystem fallback: {} skills", registry_skills.len()));
     }
 
     let registry = SkillRegistry {
         version: 1,
         updated: String::new(),
         categories: Vec::new(),
-        skills: db_skills,
+        skills: registry_skills,
     };
 
     let mut all_results = Vec::new();
-    let mut dbg_lines: Vec<String> = Vec::new();
-    dbg_lines.push(format!("kb={}", kb));
-    dbg_lines.push(format!("skills_dir={}", skills_dir.display()));
     dbg_lines.push(format!("registry has {} skills", registry.skills.len()));
 
     // Build a set of all registered distribution paths for quick lookup
@@ -1009,6 +1054,85 @@ pub async fn skill_check_all(
         }
     }
 
+    // 3. Scan per-domain AI packages for skill copies under
+    //    `0_Platform/domains/<domain>/ai/skills/<slug>`. These are deployed
+    //    by val_generate_ai_package and aren't tracked in `skills.distributions`,
+    //    so the registry-driven loop above misses them.
+    let domains_dir = PathBuf::from(kb).join("0_Platform").join("domains");
+    // Build the full set of known domain slugs once. Used by the per-domain
+    // mtime check to honour filename-based domain routing (a file whose stem
+    // matches a different domain belongs to that domain, not this one).
+    let all_domain_slugs: std::collections::HashSet<String> = if domains_dir.exists() {
+        fs::read_dir(&domains_dir)
+            .map(|rd| rd
+                .flatten()
+                .filter(|e| e.path().is_dir())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .filter(|n| !n.starts_with('.') && !n.starts_with('_'))
+                .collect())
+            .unwrap_or_default()
+    } else {
+        std::collections::HashSet::new()
+    };
+    if domains_dir.exists() {
+        if let Ok(domains) = fs::read_dir(&domains_dir) {
+            for domain_entry in domains.flatten() {
+                let domain_name = domain_entry.file_name().to_string_lossy().to_string();
+                if !domain_entry.path().is_dir()
+                    || domain_name.starts_with('.')
+                    || domain_name.starts_with('_')
+                {
+                    continue;
+                }
+
+                let ai_skills = domain_entry.path().join("ai").join("skills");
+                if !ai_skills.exists() {
+                    continue;
+                }
+
+                if let Ok(skill_dirs) = fs::read_dir(&ai_skills) {
+                    for skill_entry in skill_dirs.flatten() {
+                        let skill_name = skill_entry.file_name().to_string_lossy().to_string();
+                        if !skill_entry.path().is_dir()
+                            || skill_name.starts_with('.')
+                            || skill_name.starts_with('_')
+                        {
+                            continue;
+                        }
+
+                        // Only check skills that exist in the registry; a
+                        // stray folder with no master is reported elsewhere.
+                        if !registry.skills.contains_key(&skill_name) {
+                            continue;
+                        }
+
+                        let dist_path = format!(
+                            "0_Platform/domains/{}/ai/skills/{}",
+                            domain_name, skill_name
+                        );
+
+                        if registered_paths.contains(&dist_path) {
+                            continue;
+                        }
+
+                        let source_dir = skills_dir.join(&skill_name);
+                        let target_path = PathBuf::from(kb).join(&dist_path);
+                        let result = check_distribution_by_mtime(
+                            &skill_name,
+                            &dist_path,
+                            &source_dir,
+                            &target_path,
+                            &domain_name,
+                            &all_domain_slugs,
+                        );
+                        dbg_lines.push(format!("domain {} -> {} = {}", domain_name, dist_path, result.status));
+                        all_results.push(result);
+                    }
+                }
+            }
+        }
+    }
+
     dbg_lines.push(format!("returning {} results", all_results.len()));
     let _ = fs::write("/tmp/skill_check_all_debug.txt", dbg_lines.join("\n"));
     Ok(all_results)
@@ -1047,6 +1171,153 @@ fn check_distribution(slug: &str, dist_path: &str, source_hash: &str, source_pat
         target_hash,
         source_modified,
         target_modified,
+    }
+}
+
+/// Drift check by *timestamp* rather than content hash. Used for per-domain
+/// AI packages where the generator transforms the master (frontmatter strip,
+/// {{DOMAIN}} substitution, _domains/ flattening) — so a hash comparison
+/// would always report drift. The deployed copy is "in sync" if it was
+/// written at-or-after the master's most recent edit (filtered to the
+/// files this domain would actually receive).
+fn check_distribution_by_mtime(
+    slug: &str,
+    dist_path: &str,
+    source_path: &Path,
+    target_path: &PathBuf,
+    target_domain: &str,
+    all_domains: &std::collections::HashSet<String>,
+) -> SkillDriftStatus {
+    let source_modified = max_mtime_for_domain(source_path, target_domain, all_domains);
+
+    if !target_path.exists() {
+        return SkillDriftStatus {
+            slug: slug.to_string(),
+            distribution_path: dist_path.to_string(),
+            status: "not_distributed".to_string(),
+            source_hash: String::new(),
+            target_hash: String::new(),
+            source_modified,
+            target_modified: String::new(),
+        };
+    }
+
+    let target_modified = get_folder_latest_modified(target_path);
+
+    // Empty timestamps shouldn't happen but treat as unknown so the chip
+    // stays violet rather than false-positive.
+    let status = if source_modified.is_empty() || target_modified.is_empty() {
+        "drifted".to_string()
+    } else if target_modified.as_str() >= source_modified.as_str() {
+        "in_sync".to_string()
+    } else {
+        "drifted".to_string()
+    };
+
+    SkillDriftStatus {
+        slug: slug.to_string(),
+        distribution_path: dist_path.to_string(),
+        status,
+        source_hash: String::new(),
+        target_hash: String::new(),
+        source_modified,
+        target_modified,
+    }
+}
+
+/// Latest mtime among files in `source` that would actually deploy to
+/// `target_domain`. Mirrors the filter rules of val_ai::copy_skill_dir_recursive:
+///   - skip files inside `_domains/<other>/` (flatten only `_domains/<target>/`)
+///   - skip files whose stem matches a known domain other than `target`
+///     (filename-based domain routing)
+///   - skip the standard SKIP_FILES + dotfiles + .DS_Store
+fn max_mtime_for_domain(
+    source: &Path,
+    target_domain: &str,
+    all_domains: &std::collections::HashSet<String>,
+) -> String {
+    let mut latest: Option<std::time::SystemTime> = None;
+    walk_filtered_for_domain(source, target_domain, all_domains, false, &mut latest);
+    latest
+        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).format("%Y-%m-%dT%H:%M:%SZ").to_string())
+        .unwrap_or_default()
+}
+
+fn walk_filtered_for_domain(
+    dir: &Path,
+    target_domain: &str,
+    all_domains: &std::collections::HashSet<String>,
+    inside_domain_subdir: bool,
+    latest: &mut Option<std::time::SystemTime>,
+) {
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name == ".DS_Store" || name.starts_with('.') {
+            continue;
+        }
+        if path.is_dir() {
+            // Standard SKIP_DIRS — keep in sync with val_ai SKIP_DIRS.
+            if matches!(
+                name.as_str(),
+                "evals" | "demo" | "examples" | "__pycache__" | "_catalog" | "_archive" | "prompts"
+            ) {
+                continue;
+            }
+            if name == "_domains" {
+                // Only descend into `_domains/<target>/`, treat as if at the
+                // parent level (matching the flatten behaviour of generate).
+                let scoped = path.join(target_domain);
+                if scoped.is_dir() {
+                    walk_filtered_for_domain(&scoped, target_domain, all_domains, true, latest);
+                }
+                continue;
+            }
+            walk_filtered_for_domain(&path, target_domain, all_domains, inside_domain_subdir, latest);
+        } else {
+            // Standard SKIP_FILES.
+            if matches!(
+                name.as_str(),
+                "SKILL.md" | "README.md" | "AUDIT.md" | "evals.json" | "guide.html" | ".claude.local.md"
+            ) {
+                // SKILL.md is intentionally skipped here — it's always copied
+                // and re-touched by generate so its mtime tracks the deploy
+                // event, not the source edit. Including it would mark every
+                // skill as drifted right after a master edit even when the
+                // changed file wouldn't deploy to this domain.
+                if name == "SKILL.md" {
+                    if let Some(t) = path.metadata().ok().and_then(|m| m.modified().ok()) {
+                        *latest = Some(match *latest {
+                            Some(prev) if t > prev => t,
+                            Some(prev) => prev,
+                            None => t,
+                        });
+                    }
+                }
+                continue;
+            }
+            if name.ends_with(".excalidraw") {
+                continue;
+            }
+            // Filename-based domain routing: a file whose stem matches a known
+            // domain that isn't this target is scoped to that other domain.
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                if !stem.is_empty() && stem != target_domain && all_domains.contains(stem) {
+                    continue;
+                }
+            }
+            if let Some(t) = path.metadata().ok().and_then(|m| m.modified().ok()) {
+                *latest = Some(match *latest {
+                    Some(prev) if t > prev => t,
+                    Some(prev) => prev,
+                    None => t,
+                });
+            }
+        }
     }
 }
 

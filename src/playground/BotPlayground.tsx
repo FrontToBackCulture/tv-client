@@ -186,7 +186,8 @@ export function BotPlayground() {
         subfolders: subfolders.filter((s) => s.is_directory && !s.name.startsWith(".")).map((s) => s.name),
         status: regEntry?.status ?? "active",
         verified: regEntry?.verified ?? false,
-        lastRevised: regEntry?.last_audited ?? null,
+        // last_audited dropped in Layer 1 alignment; lastRevised now null.
+        lastRevised: null,
         updated: meta.updated,
         category: skillCategoriesData.skills[f.name] || null,
         command: regEntry?.command ?? meta.command,
