@@ -157,7 +157,7 @@ export function CollateralView() {
     );
   };
 
-  const websiteUrl = "https://thinkval.co";
+  const websiteUrl = "https://www.thinkval.com";
 
   const itemBase = "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors";
   const itemActive = "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400";
