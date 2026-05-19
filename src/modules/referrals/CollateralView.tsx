@@ -1,17 +1,23 @@
 // src/modules/referrals/CollateralView.tsx
 // Manage partner-facing sales decks — toggle published, edit metadata
 
-import { useMemo, useRef, useState, type FormEvent, type ChangeEvent } from "react";
-import { Eye, EyeOff, Pencil, ExternalLink, X, Check, Layers, Plus, Upload } from "lucide-react";
+import { useMemo, useState, type FormEvent } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { readFile } from "@tauri-apps/plugin-fs";
+import { Eye, EyeOff, Pencil, ExternalLink, X, Check, Layers, Plus, Upload, FileCode, FileDown, Trash2 } from "lucide-react";
 import {
   usePartnerDecks,
   useUpdateDeck,
   useCreateDeck,
   useReplaceDeckFile,
+  useUploadDeckPdf,
+  useRemoveDeckPdf,
   slugify,
   PartnerDeck,
 } from "../../hooks/usePartnerDecks";
+import { bundleDeckHtml } from "../../lib/deckBundler";
 import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
+import { timeAgoVerbose, formatDateFull } from "../../lib/date";
 import { FormModal, FormField, Input } from "../../components/ui";
 import { toast } from "../../stores/toastStore";
 import { cn } from "../../lib/cn";
@@ -29,6 +35,8 @@ export function CollateralView() {
   const updateDeck = useUpdateDeck();
   const createDeck = useCreateDeck();
   const replaceFile = useReplaceDeckFile();
+  const uploadPdf = useUploadDeckPdf();
+  const removePdf = useRemoveDeckPdf();
 
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -39,10 +47,12 @@ export function CollateralView() {
     guidance: "",
   });
   const [createFile, setCreateFile] = useState<File | null>(null);
+  const [createFileInfo, setCreateFileInfo] = useState<string | null>(null);
+  const [createPdf, setCreatePdf] = useState<File | null>(null);
+  const [createPdfInfo, setCreatePdfInfo] = useState<string | null>(null);
 
-  // Hidden input drives "Replace file" on an existing deck.
-  const replaceInputRef = useRef<HTMLInputElement>(null);
-  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
+  // True while a picked .html is being bundled into a self-contained file.
+  const [bundling, setBundling] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{
@@ -107,6 +117,81 @@ export function CollateralView() {
     setShowCreate(false);
     setCreateForm({ title: "", slug: "", slugTouched: false, description: "", guidance: "" });
     setCreateFile(null);
+    setCreateFileInfo(null);
+    setCreatePdf(null);
+    setCreatePdfInfo(null);
+  };
+
+  // Native PDF picker → File (no bundling; PDFs are self-contained binary).
+  const pickPdfFile = async (): Promise<File | null> => {
+    const sel = await open({
+      multiple: false,
+      title: "Select the deck PDF",
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    if (!sel || typeof sel !== "string") return null;
+    try {
+      const bytes = await readFile(sel);
+      return new File([bytes], "deck.pdf", { type: "application/pdf" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  };
+
+  const handlePdfPick = async (deck: PartnerDeck) => {
+    const file = await pickPdfFile();
+    if (!file) return;
+    uploadPdf.mutate(
+      { id: deck.id, slug: deck.slug, file },
+      {
+        onSuccess: () => toast.success(`PDF attached to ${deck.slug}`),
+        onError: (err) => toast.error(err.message),
+      },
+    );
+  };
+
+  const handlePdfRemove = (deck: PartnerDeck) => {
+    removePdf.mutate(
+      { id: deck.id, slug: deck.slug },
+      {
+        onSuccess: () => toast.success(`PDF removed from ${deck.slug}`),
+        onError: (err) => toast.error(err.message),
+      },
+    );
+  };
+
+  // Open a native .html picker, follow its links, and bundle into one
+  // self-contained file. Returns null (and toasts) on cancel/error.
+  const pickAndBundleFile = async (): Promise<File | null> => {
+    const sel = await open({
+      multiple: false,
+      title: "Select the deck's .html file",
+      filters: [{ name: "HTML", extensions: ["html", "htm"] }],
+    });
+    if (!sel || typeof sel !== "string") return null;
+    setBundling(true);
+    try {
+      const { html, imageCount, leftover } = await bundleDeckHtml(sel);
+      if (leftover.length) {
+        toast.error(
+          `${leftover.length} link(s) couldn't be resolved: ${leftover
+            .slice(0, 3)
+            .join(", ")}${leftover.length > 3 ? "…" : ""}`,
+        );
+        return null;
+      }
+      const file = new File([html], "deck.html", { type: "text/html" });
+      toast.success(
+        `Bundled · ${imageCount} image(s) inlined · ${(file.size / 1024 / 1024).toFixed(1)} MB`,
+      );
+      return file;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+      return null;
+    } finally {
+      setBundling(false);
+    }
   };
 
   const previewSlug = slugify(
@@ -126,6 +211,7 @@ export function CollateralView() {
         description: createForm.description || null,
         guidance: createForm.guidance || null,
         file: createFile,
+        pdfFile: createPdf,
       },
       {
         onSuccess: () => {
@@ -137,21 +223,13 @@ export function CollateralView() {
     );
   };
 
-  const handleReplacePick = (deck: PartnerDeck) => {
-    setReplaceTargetId(deck.id);
-    replaceInputRef.current?.click();
-  };
-
-  const handleReplaceFile = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    const deck = decks.find((d) => d.id === replaceTargetId);
-    setReplaceTargetId(null);
-    if (!file || !deck) return;
+  const handleReplacePick = async (deck: PartnerDeck) => {
+    const file = await pickAndBundleFile();
+    if (!file) return;
     replaceFile.mutate(
       { id: deck.id, slug: deck.slug, file },
       {
-        onSuccess: () => toast.success(`Replaced ${deck.slug}.html`),
+        onSuccess: () => toast.success(`Replaced ${deck.slug} · live in ~1 min`),
         onError: (err) => toast.error(err.message),
       },
     );
@@ -165,14 +243,6 @@ export function CollateralView() {
 
   return (
     <div className="h-full flex overflow-hidden px-4 py-4">
-     <input
-       ref={replaceInputRef}
-       type="file"
-       accept=".html,text/html"
-       className="hidden"
-       onChange={handleReplaceFile}
-     />
-
      {showCreate && (
        <FormModal
          title="New deck"
@@ -192,7 +262,7 @@ export function CollateralView() {
          <FormField
            label="Slug"
            required
-           hint={`Share URL: thinkval.co/d/${previewSlug || "…"} · Storage: ${previewSlug || "…"}.html (permanent — pick carefully)`}
+           hint={`Share URL: thinkval.com/d/${previewSlug || "…"} · Storage: ${previewSlug || "…"}.html (permanent — pick carefully)`}
          >
            <Input
              value={createForm.slugTouched ? createForm.slug : previewSlug}
@@ -217,20 +287,61 @@ export function CollateralView() {
            />
          </FormField>
          <FormField
-           label="Deck HTML file"
+           label="Deck HTML"
            required
-           hint="Self-contained .html (assets inlined). Uploaded to Supabase Storage."
+           hint="Pick the deck's .html — its linked CSS & images are auto-inlined into one self-contained file."
          >
-           <input
-             type="file"
-             accept=".html,text/html"
-             onChange={(e) => setCreateFile(e.target.files?.[0] ?? null)}
-             className="block w-full text-xs text-zinc-500 dark:text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-zinc-100 file:text-zinc-700 dark:file:bg-zinc-800 dark:file:text-zinc-300 hover:file:bg-zinc-200 dark:hover:file:bg-zinc-700"
-           />
-           {createFile && (
-             <p className="mt-1 text-xs text-zinc-400">
-               {createFile.name} · {(createFile.size / 1024).toFixed(0)} KB
+           <button
+             type="button"
+             disabled={bundling}
+             onClick={async () => {
+               const f = await pickAndBundleFile();
+               if (f) {
+                 setCreateFile(f);
+                 setCreateFileInfo(`${(f.size / 1024 / 1024).toFixed(1)} MB · self-contained`);
+               }
+             }}
+             className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-colors disabled:opacity-60"
+           >
+             <FileCode size={14} />
+             {bundling ? "Bundling…" : createFile ? "Choose a different .html" : "Select deck .html"}
+           </button>
+           {createFile && createFileInfo && (
+             <p className="mt-1.5 text-xs text-green-600 dark:text-green-400">
+               ✓ Bundled · {createFileInfo}
              </p>
+           )}
+         </FormField>
+         <FormField
+           label="PDF (optional)"
+           hint="A downloadable PDF version partners can share. Uploaded as-is."
+         >
+           <button
+             type="button"
+             onClick={async () => {
+               const f = await pickPdfFile();
+               if (f) {
+                 setCreatePdf(f);
+                 setCreatePdfInfo(`${(f.size / 1024 / 1024).toFixed(1)} MB`);
+               }
+             }}
+             className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-colors"
+           >
+             <FileDown size={14} />
+             {createPdf ? "Choose a different PDF" : "Select PDF"}
+           </button>
+           {createPdf && createPdfInfo && (
+             <span className="ml-2 inline-flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+               ✓ {createPdfInfo}
+               <button
+                 type="button"
+                 onClick={() => { setCreatePdf(null); setCreatePdfInfo(null); }}
+                 className="text-zinc-400 hover:text-red-500"
+                 title="Remove PDF"
+               >
+                 <X size={12} />
+               </button>
+             </span>
            )}
          </FormField>
        </FormModal>
@@ -327,13 +438,39 @@ export function CollateralView() {
                         <button
                           type="button"
                           onClick={() => handleReplacePick(deck)}
-                          disabled={replaceFile.isPending}
-                          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors"
-                          title="Upload a new HTML file for this deck"
+                          disabled={replaceFile.isPending || bundling}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors disabled:opacity-60"
+                          title="Pick the deck's .html — CSS & images auto-bundled, then uploaded"
                         >
                           <Upload size={12} className="inline mr-1" />
-                          {replaceFile.isPending ? "Uploading…" : "Replace file"}
+                          {bundling ? "Bundling…" : replaceFile.isPending ? "Uploading…" : "Replace .html"}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePdfPick(deck)}
+                          disabled={uploadPdf.isPending}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors disabled:opacity-60"
+                          title={deck.pdf_path ? "Replace the downloadable PDF" : "Attach a downloadable PDF"}
+                        >
+                          <FileDown size={12} className="inline mr-1" />
+                          {uploadPdf.isPending
+                            ? "Uploading…"
+                            : deck.pdf_path
+                              ? "Replace PDF"
+                              : "Add PDF"}
+                        </button>
+                        {deck.pdf_path && (
+                          <button
+                            type="button"
+                            onClick={() => handlePdfRemove(deck)}
+                            disabled={removePdf.isPending}
+                            className="text-xs font-medium px-2.5 py-1 rounded-lg bg-zinc-100 text-red-500 hover:bg-red-50 dark:bg-zinc-800 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors disabled:opacity-60"
+                            title="Remove the PDF"
+                          >
+                            <Trash2 size={12} className="inline mr-1" />
+                            {removePdf.isPending ? "Removing…" : "Remove PDF"}
+                          </button>
+                        )}
                         <button
                           onClick={() => setEditingId(null)}
                           className="text-xs font-medium px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors"
@@ -359,6 +496,14 @@ export function CollateralView() {
                           >
                             {deck.published ? "Published" : "Hidden"}
                           </span>
+                          {deck.pdf_path && (
+                            <span
+                              className="text-[10px] font-medium px-1.5 py-0.5 rounded-full text-teal-600 bg-teal-50 dark:text-teal-400 dark:bg-teal-900/20"
+                              title="A downloadable PDF is attached"
+                            >
+                              PDF
+                            </span>
+                          )}
                         </div>
                         {deck.description && (
                           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -372,6 +517,14 @@ export function CollateralView() {
                         )}
                         <span className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1 block">
                           /{deck.slug}
+                          {deck.updated_at && (
+                            <span
+                              title={`Last edited ${formatDateFull(deck.updated_at) ?? deck.updated_at}`}
+                            >
+                              {" · Edited "}
+                              {timeAgoVerbose(deck.updated_at)}
+                            </span>
+                          )}
                         </span>
                       </div>
 
