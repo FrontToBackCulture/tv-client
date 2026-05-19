@@ -63,6 +63,7 @@ import { DomainReportsTab } from "./DomainReportsTab";
 import DomainSolutionsTab from "./DomainSolutionsTab";
 
 import { UnifiedReviewView } from "./UnifiedReviewView";
+import { DriveReviewView } from "./DriveReviewView";
 import { DomainCleanupTab } from "./DomainCleanupTab";
 import { DomainDependenciesTab } from "./DomainDependenciesTab";
 import type { ReviewResourceType } from "./reviewTypes";
@@ -95,7 +96,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
   // Report domain + sub-tab to help bot
   const setViewDetail = useViewContextStore((s) => s.setDetail);
   useEffect(() => {
-    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", cleanup: "Cleanup", reports: "Reports", ai: "AI", dependencies: "Dependencies", discussion: "Discussion", solutions: "Solutions" };
+    const tabLabels: Record<Tab, string> = { overview: "Overview", "data-models": "Data Models", queries: "Queries", workflows: "Workflows", dashboards: "Dashboards", drive: "Drive", cleanup: "Cleanup", reports: "Reports", ai: "AI", dependencies: "Dependencies", discussion: "Discussion", solutions: "Solutions" };
     setViewDetail(`${domain} → ${tabLabels[activeTab]}`);
   }, [domain, activeTab, setViewDetail]);
 
@@ -302,6 +303,7 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
     { id: "queries", label: "Queries", icon: Search },
     { id: "workflows", label: "Workflows", icon: Workflow },
     { id: "dashboards", label: "Dashboards", icon: BarChart3 },
+    { id: "drive", label: "Drive", icon: Folder },
     { id: "cleanup", label: "Cleanup", icon: Trash2 },
     { id: "dependencies", label: "Dependencies", icon: GitBranch },
     { id: "reports", label: "Reports", icon: FileText },
@@ -566,8 +568,16 @@ export function DomainDetailPanel({ id: domain, onClose, onReviewDataModels, onR
         </div>
       )}
 
+      {activeTab === "drive" && discoveredDomain && (
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <DriveReviewView key={`${domain}-drive`} domainName={domain} />
+          </div>
+        </div>
+      )}
+
       {/* Tab content (overview) */}
-      <div className={cn("flex-1 min-h-0 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports" || activeTab === "cleanup" || activeTab === "dependencies" || activeTab === "solutions" || activeTab === "discussion") && "hidden")}>
+      <div className={cn("flex-1 min-h-0 overflow-auto p-4", (REVIEW_TABS[activeTab] || activeTab === "ai" || activeTab === "reports" || activeTab === "cleanup" || activeTab === "dependencies" || activeTab === "solutions" || activeTab === "discussion" || activeTab === "drive") && "hidden")}>
         {activeTab === "overview" && discoveredDomain && (
           /* Two-column overview when discoveredDomain is provided */
           <div className="flex gap-6">

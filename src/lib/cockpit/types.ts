@@ -207,7 +207,8 @@ export type DealStage =
   | "proposal"
   | "negotiation"
   | "won"
-  | "lost";
+  | "lost"
+  | "passive";
 
 export const ACTIVE_DEAL_STAGES: DealStage[] = [
   "target",
@@ -229,6 +230,7 @@ export const DEAL_STAGE_ORDER: Record<DealStage, number> = {
   negotiation: 6,
   won: 7,
   lost: 8,
+  passive: 9,
 };
 
 export interface DealProject {
@@ -238,6 +240,10 @@ export interface DealProject {
   company_name: string;
   deal_stage: DealStage | null;
   deal_value: number | null;
+  deal_mrr: number | null;
+  deal_setup_fee: number | null;
+  deal_arr: number | null;
+  deal_year_1_total: number | null;
   deal_currency: string | null;
   deal_solution: string | null;
   deal_expected_close: string | null;

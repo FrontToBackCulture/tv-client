@@ -37,6 +37,10 @@ export interface ResolvedProject {
   company_id: string | null;
   deal_stage: string | null;
   deal_value: number | null;
+  deal_mrr: number | null;
+  deal_setup_fee: number | null;
+  deal_arr: number | null;
+  deal_year_1_total: number | null;
   deal_currency: string | null;
   deal_expected_close: string | null;
   deal_actual_close: string | null;
@@ -103,7 +107,8 @@ export function useEntityRefs(body: string) {
               .select(`
                 id, name, status, project_type, identifier_prefix, description, summary, lead, priority, health, color,
                 target_date, created_at, updated_at, folder_path, company_id,
-                deal_stage, deal_value, deal_currency, deal_expected_close, deal_actual_close, deal_notes,
+                deal_stage, deal_value, deal_mrr, deal_setup_fee, deal_arr, deal_year_1_total,
+                deal_currency, deal_expected_close, deal_actual_close, deal_notes,
                 deal_solution, deal_tags, deal_contact_ids, deal_proposal_path, deal_order_form_path,
                 company:crm_companies(id, name, display_name)
               `)

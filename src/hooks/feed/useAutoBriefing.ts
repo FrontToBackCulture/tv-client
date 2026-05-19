@@ -206,14 +206,19 @@ async function getPipelineSnapshot(): Promise<CardCandidate[]> {
   // Fetch active deals
   const { data: deals } = await supabase
     .from("projects")
-    .select("id, name, stage, deal_value")
+    .select("id, name, stage, deal_value, deal_year_1_total")
     .eq("project_type", "deal")
-    .not("stage", "in", '("won","lost")')
+    .not("stage", "in", '("won","lost","passive")')
     .eq("archived_at", null);
 
   if (!deals || deals.length === 0) return [];
 
-  const totalValue = deals.reduce((s, d) => s + ((d as { deal_value?: number }).deal_value || 0), 0);
+  // Y1 figure: prefer derived deal_year_1_total, fall back to legacy deal_value.
+  const y1Of = (d: any): number =>
+    (d as { deal_year_1_total?: number | null }).deal_year_1_total
+      ?? (d as { deal_value?: number | null }).deal_value
+      ?? 0;
+  const totalValue = deals.reduce((s, d) => s + y1Of(d), 0);
 
   // Simple weighted calculation
   const weights: Record<string, number> = {
@@ -222,7 +227,7 @@ async function getPipelineSnapshot(): Promise<CardCandidate[]> {
   };
   const weighted = deals.reduce((s, d) => {
     const w = weights[(d as { stage?: string }).stage || ""] || 0;
-    return s + ((d as { deal_value?: number }).deal_value || 0) * w;
+    return s + y1Of(d) * w;
   }, 0);
 
   // Stage distribution for body

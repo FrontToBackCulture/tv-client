@@ -47,7 +47,11 @@ export const BUILT_IN_FIELDS: { key: string; label: string; type: FieldType; opt
 /** Deal-specific built-in fields */
 export const DEAL_BUILT_IN_FIELDS: { key: string; label: string; type: FieldType; options?: { value: string; label: string }[] }[] = [
   { key: "deal_stage", label: "Stage", type: "select", options: DEAL_STAGES.map(s => ({ value: s.value, label: s.label })) },
-  { key: "deal_value", label: "Value", type: "number" },
+  { key: "deal_mrr", label: "MRR (SGD/mo)", type: "number" },
+  { key: "deal_setup_fee", label: "Setup fee", type: "number" },
+  { key: "deal_arr", label: "ARR", type: "number" },
+  { key: "deal_year_1_total", label: "Year 1 total", type: "number" },
+  { key: "deal_value", label: "Value (legacy)", type: "number" },
   { key: "deal_currency", label: "Currency", type: "text" },
   { key: "deal_solution", label: "Solution", type: "multiselect", options: DEAL_SOLUTIONS.map(s => ({ value: s.value, label: s.label })) },
   { key: "deal_expected_close", label: "Expected Close", type: "date" },
@@ -68,7 +72,7 @@ export type ProjectType = typeof PROJECT_TYPES[number]["key"];
 /** Default enabled fields per type */
 const DEFAULT_CONFIGS: Record<ProjectType, string[]> = {
   work: ["health", "lead", "target_date"],
-  deal: ["deal_stage", "deal_value", "deal_currency", "deal_solution", "deal_expected_close", "deal_actual_close", "deal_lost_reason", "deal_won_notes", "deal_notes"],
+  deal: ["deal_stage", "deal_mrr", "deal_setup_fee", "deal_arr", "deal_year_1_total", "deal_currency", "deal_solution", "deal_expected_close", "deal_actual_close", "deal_lost_reason", "deal_won_notes", "deal_notes"],
 };
 
 /** Custom field definition (user-created) */

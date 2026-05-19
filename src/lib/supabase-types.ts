@@ -4286,13 +4286,16 @@ export type Database = {
           company_id: string | null
           created_at: string | null
           deal_actual_close: string | null
+          deal_arr: number | null
           deal_contact_ids: string[] | null
           deal_currency: string | null
           deal_expected_close: string | null
           deal_lost_reason: string | null
+          deal_mrr: number | null
           deal_notes: string | null
           deal_order_form_path: string | null
           deal_proposal_path: string | null
+          deal_setup_fee: number | null
           deal_solution: string | null
           deal_stage: string | null
           deal_stage_changed_at: string | null
@@ -4300,6 +4303,7 @@ export type Database = {
           deal_tags: string[] | null
           deal_value: number | null
           deal_won_notes: string | null
+          deal_year_1_total: number | null
           description: string | null
           folder_path: string | null
           health: string | null
@@ -4329,9 +4333,11 @@ export type Database = {
           deal_currency?: string | null
           deal_expected_close?: string | null
           deal_lost_reason?: string | null
+          deal_mrr?: number | null
           deal_notes?: string | null
           deal_order_form_path?: string | null
           deal_proposal_path?: string | null
+          deal_setup_fee?: number | null
           deal_solution?: string | null
           deal_stage?: string | null
           deal_stage_changed_at?: string | null
@@ -4368,9 +4374,11 @@ export type Database = {
           deal_currency?: string | null
           deal_expected_close?: string | null
           deal_lost_reason?: string | null
+          deal_mrr?: number | null
           deal_notes?: string | null
           deal_order_form_path?: string | null
           deal_proposal_path?: string | null
+          deal_setup_fee?: number | null
           deal_solution?: string | null
           deal_stage?: string | null
           deal_stage_changed_at?: string | null

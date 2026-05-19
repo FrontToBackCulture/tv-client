@@ -2,7 +2,7 @@
 
 import type { ClassificationField } from "../../stores/classificationStore";
 
-export type ReviewResourceType = "table" | "query" | "dashboard" | "workflow";
+export type ReviewResourceType = "table" | "query" | "dashboard" | "workflow" | "drive_file";
 
 /** Subset for artifact types (non-table) — used by ArtifactDetailPreview */
 export type ArtifactType = "query" | "dashboard" | "workflow";
@@ -139,6 +139,9 @@ export const FOLDER_PREFIX: Record<ReviewResourceType, string> = {
   query: "query_",
   dashboard: "dashboard_",
   workflow: "workflow_",
+  // Drive files have no on-disk definitions; this prefix is unused (the
+  // Drive review loads rows from the live VAL Drive API, not disk).
+  drive_file: "",
 };
 
 // Label for each resource type
@@ -147,6 +150,7 @@ export const RESOURCE_LABEL: Record<ReviewResourceType, string> = {
   query: "Queries",
   dashboard: "Dashboards",
   workflow: "Workflows",
+  drive_file: "Drive Files",
 };
 
 // Description for each resource type — shown as subtitle in review view
@@ -155,4 +159,5 @@ export const RESOURCE_DESCRIPTION: Record<ReviewResourceType, string> = {
   query: "Saved queries from VAL. Review SQL definitions, check which dashboards use each query, and manage portal visibility.",
   dashboard: "Dashboard configurations from VAL. Review widget layouts, linked queries, and manage portal visibility.",
   workflow: "Automation workflows from VAL. Review triggers, actions, and execution status.",
+  drive_file: "VAL Drive files. Tick which files to expose on the client portal; cards download the file via an authenticated proxy. Sync to Portal publishes.",
 };

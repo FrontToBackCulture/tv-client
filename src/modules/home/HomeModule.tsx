@@ -1081,7 +1081,10 @@ function DealPipelineGrid({ onOpenProject }: { onOpenProject: (projectId: string
   const lateStageCount = deals.filter(
     (d) => d.deal_stage === "proposal" || d.deal_stage === "negotiation"
   ).length;
-  const totalValue = deals.reduce((sum, d) => sum + (d.deal_value ?? 0), 0);
+  const totalValue = deals.reduce(
+    (sum, d) => sum + ((d as any).deal_year_1_total ?? d.deal_value ?? 0),
+    0,
+  );
   const overdueTotal = deals.reduce((sum, d) => sum + (d.overdue_tasks ?? 0), 0);
 
   return (
@@ -1203,7 +1206,7 @@ function DealPipelineGrid({ onOpenProject }: { onOpenProject: (projectId: string
                         </span>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                        {formatDealValue(d.deal_value, d.deal_currency)}
+                        {formatDealValue((d as any).deal_year_1_total ?? d.deal_value, d.deal_currency)}
                       </td>
                       <td className="px-3 py-2 text-slate-500 dark:text-slate-400 tabular-nums">
                         {d.deal_expected_close ?? <span className="text-slate-300 dark:text-slate-600">—</span>}

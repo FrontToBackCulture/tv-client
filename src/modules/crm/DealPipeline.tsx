@@ -171,7 +171,7 @@ export function DealPipeline({
 
   // Fetch deals with tasks
   const activeStageValues = ["target", "prospect", "lead", "qualified", "pilot", "proposal", "negotiation"];
-  const allStageValues = [...activeStageValues, "won", "lost"];
+  const allStageValues = [...activeStageValues, "won", "lost", "passive"];
   const { data: deals = [], isLoading, refetch } = useDealsWithTasks({
     stage: showClosed ? allStageValues : activeStageValues,
   });
@@ -179,7 +179,7 @@ export function DealPipeline({
   const updateMutation = useUpdateDeal();
 
   const visibleStages = DEAL_STAGES.filter(
-    (s) => showClosed || !["won", "lost"].includes(s.value)
+    (s) => showClosed || !["won", "lost", "passive"].includes(s.value)
   );
 
   // Filter deals: solution + referral + close window + update window

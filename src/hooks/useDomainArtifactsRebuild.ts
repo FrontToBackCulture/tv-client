@@ -15,6 +15,9 @@ const RESOURCE_FOLDER: Record<ReviewResourceType, string> = {
   query: "queries",
   dashboard: "dashboards",
   workflow: "workflows",
+  // Not disk-backed and excluded from RESOURCE_TYPES above — inert, present
+  // only to satisfy the exhaustive Record type.
+  drive_file: "",
 };
 
 export interface RebuildProgress {

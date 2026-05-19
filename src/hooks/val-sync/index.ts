@@ -6,6 +6,7 @@ export * from "./useValTablePipeline";
 export * from "./useValDomainModel";
 export * from "./useValAiPackage";
 export * from "./useValDrive";
+export * from "./useValDrivePortal";
 export * from "./healthChecks";
 export * from "./useDomainHealthChecks";
 export * from "./useValDependencies";

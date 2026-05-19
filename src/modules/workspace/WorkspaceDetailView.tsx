@@ -1837,7 +1837,10 @@ export function WorkspaceDetailView({ workspaceId, onBack, onUpdated: _onUpdated
         `Type: ${ws?.project_type || "work"}`,
         ws?.deal_stage ? `Deal Stage: ${ws.deal_stage}` : null,
         ws?.deal_solution ? `Solution: ${ws.deal_solution}` : null,
-        ws?.deal_value ? `Value: ${ws.deal_currency || "SGD"} ${ws.deal_value}` : null,
+        (ws?.deal_year_1_total ?? ws?.deal_value)
+          ? `Value: ${ws.deal_currency || "SGD"} ${ws.deal_year_1_total ?? ws.deal_value}` +
+            (ws?.deal_mrr ? ` (MRR ${ws.deal_currency || "SGD"} ${ws.deal_mrr}/mo)` : "")
+          : null,
         ws?.description ? `Description: ${ws.description}` : null,
         `Status: ${ws?.status || "active"}`,
       ].filter(Boolean).join("\n");
@@ -2152,7 +2155,7 @@ Write a brief current state summary. No bullet points, just a natural sentence o
 
   // Config-driven project fields — subscribe to store so changes in settings trigger re-render
   const enabledProjectFields = useProjectFieldsStore((s) => s.getEnabledFields((workspace as any)?.project_type || "work"));
-  const dealFieldKeys = new Set(["deal_stage", "deal_value", "deal_currency", "deal_solution", "deal_expected_close", "deal_actual_close", "deal_lost_reason", "deal_won_notes", "deal_notes"]);
+  const dealFieldKeys = new Set(["deal_stage", "deal_value", "deal_mrr", "deal_setup_fee", "deal_arr", "deal_year_1_total", "deal_currency", "deal_solution", "deal_expected_close", "deal_actual_close", "deal_lost_reason", "deal_won_notes", "deal_notes"]);
   const projectType = (workspace as any)?.project_type || "work";
   const hardcodedFieldKeys = new Set(["lead"]);
   const configuredFields = getFieldDefsForType(projectType)
@@ -2635,7 +2638,14 @@ Write a brief current state summary. No bullet points, just a natural sentence o
                           // Handled inside EditableField
                         } else if (field.options) {
                           displayValue = field.options.find((o: { value: string; label: string }) => o.value === String(ws[field.key] ?? ""))?.label;
-                        } else if (field.key === "deal_value" && ws[field.key]) {
+                        } else if (
+                          (field.key === "deal_value"
+                            || field.key === "deal_mrr"
+                            || field.key === "deal_setup_fee"
+                            || field.key === "deal_arr"
+                            || field.key === "deal_year_1_total")
+                          && ws[field.key] != null
+                        ) {
                           displayValue = `${ws.deal_currency || "SGD"} ${Number(ws[field.key]).toLocaleString()}`;
                         }
                         return (

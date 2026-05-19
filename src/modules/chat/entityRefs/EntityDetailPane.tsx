@@ -387,9 +387,12 @@ function ProjectOverview({ project }: { project: ResolvedProject }) {
   const save = (patch: Record<string, any>) => updateProject.mutate({ id: project.id, updates: patch as any });
 
   const currency = project.deal_currency ?? "SGD";
-  const valueDisplay = project.deal_value
-    ? `${currency} ${Number(project.deal_value).toLocaleString()}`
-    : undefined;
+  const fmt = (n: number | null | undefined) =>
+    n == null ? undefined : `${currency} ${Number(n).toLocaleString()}`;
+  const effectiveY1 = project.deal_year_1_total ?? project.deal_value;
+  const valueDisplay = fmt(effectiveY1);
+  const arrDisplay = fmt(project.deal_arr);
+  const y1Display = fmt(project.deal_year_1_total);
 
   return (
     <div className="px-5 py-4 space-y-5">
@@ -409,17 +412,40 @@ function ProjectOverview({ project }: { project: ResolvedProject }) {
                   { value: "negotiation", label: "Negotiation" },
                   { value: "won", label: "Won" },
                   { value: "lost", label: "Lost" },
+                  { value: "passive", label: "Passive" },
                 ]}
                 displayValue={project.deal_stage ?? undefined}
                 onSave={(v) => save({ deal_stage: v || null })}
               />
             </Field>
-            <Field label="Value">
+            <Field label="MRR / mo">
+              <InlineField
+                value={project.deal_mrr ?? ""}
+                type="number"
+                displayValue={fmt(project.deal_mrr)}
+                onSave={(v) => save({ deal_mrr: v === "" || v == null ? null : Number(v) })}
+              />
+            </Field>
+            <Field label="Setup fee">
+              <InlineField
+                value={project.deal_setup_fee ?? ""}
+                type="number"
+                displayValue={fmt(project.deal_setup_fee)}
+                onSave={(v) => save({ deal_setup_fee: v === "" || v == null ? null : Number(v) })}
+              />
+            </Field>
+            <Field label="ARR">
+              <span className="text-sm tabular-nums text-gray-700 dark:text-gray-300">{arrDisplay ?? "—"}</span>
+            </Field>
+            <Field label="Year 1 total">
+              <span className="text-sm tabular-nums text-gray-700 dark:text-gray-300">{y1Display ?? valueDisplay ?? "—"}</span>
+            </Field>
+            <Field label="Value (legacy)">
               <InlineField
                 value={project.deal_value ?? ""}
                 type="number"
-                displayValue={valueDisplay}
-                onSave={(v) => save({ deal_value: v ? Number(v) : null })}
+                displayValue={fmt(project.deal_value)}
+                onSave={(v) => save({ deal_value: v === "" || v == null ? null : Number(v) })}
               />
             </Field>
             <Field label="Currency">

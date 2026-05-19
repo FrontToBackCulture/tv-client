@@ -204,12 +204,16 @@ export function CrmModule() {
   }, [allDeals]);
 
   const stats = useMemo(() => {
-    const active = allDeals.filter((d) => !["won", "lost"].includes(d.stage ?? ""));
-    const totalValue = active.reduce((s, d) => s + (d.value || 0), 0);
+    const active = allDeals.filter((d) => !["won", "lost", "passive"].includes(d.stage ?? ""));
+    // Year-1 figure: prefer derived deal_year_1_total, fall back to legacy deal_value.
+    const effective = (d: typeof active[number]) => d.year1Total ?? d.value ?? 0;
+    const totalValue = active.reduce((s, d) => s + effective(d), 0);
     const weightedValue = active.reduce((s, d) => {
       const stage = DEAL_STAGES.find((st) => st.value === d.stage);
-      return s + (d.value || 0) * (stage?.weight ?? 0);
+      return s + effective(d) * (stage?.weight ?? 0);
     }, 0);
+    const totalMrr = active.reduce((s, d) => s + (d.mrr ?? 0), 0);
+    const totalArr = active.reduce((s, d) => s + (d.arr ?? 0), 0);
     const won = allDeals.filter((d) => d.stage === "won").length;
     const lost = allDeals.filter((d) => d.stage === "lost").length;
     const stale = active.filter((d) => {
@@ -221,6 +225,8 @@ export function CrmModule() {
       activeCount: active.length,
       totalValue: Math.round(totalValue / 1000),
       weightedValue: Math.round(weightedValue / 1000),
+      totalMrr: Math.round(totalMrr),
+      totalArr: Math.round(totalArr / 1000),
       won,
       lost,
       stale,
@@ -282,8 +288,10 @@ export function CrmModule() {
 
       <StatsStrip stats={[
         { value: stats.activeCount, label: <>active<br/>deals</>, color: "blue" },
-        { value: stats.totalValue, label: <>total value<br/>(K)</>, color: "emerald" },
+        { value: stats.totalValue, label: <>Y1 total<br/>(K)</>, color: "emerald" },
         { value: stats.weightedValue, label: <>weighted<br/>(K)</>, color: "purple" },
+        { value: stats.totalMrr, label: <>MRR<br/>(SGD/mo)</>, color: "blue" },
+        { value: stats.totalArr, label: <>ARR<br/>(K)</>, color: "purple" },
         { value: stats.won, label: <>won</>, color: "emerald" },
         { value: stats.lost, label: <>lost</>, color: stats.lost > 0 ? "red" : "zinc" },
         { value: stats.stale, label: <>stale<br/>(30d+)</>, color: stats.stale > 0 ? "amber" : "zinc" },

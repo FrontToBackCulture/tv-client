@@ -54,6 +54,10 @@ interface ProjectRow {
   company_stage: string | null;
   deal_stage: string | null;
   deal_value: number | null;
+  deal_mrr: number | null;
+  deal_setup_fee: number | null;
+  deal_arr: number | null;
+  deal_year_1_total: number | null;
   deal_currency: string | null;
   deal_solution: string | null;
   deal_expected_close: string | null;
@@ -161,8 +165,26 @@ function buildColumns(wrapNotes: boolean): (ColDef<ProjectRow> | ColGroupDef<Pro
       cellEditor: "agSelectCellEditor", cellEditorParams: { values: [...DEAL_STAGES.map(s => s.value), ""] },
     },
     {
-      field: "deal_value", headerName: "Value", width: 100, editable: true, type: "numericColumn", filter: "agNumberColumnFilter",
-      valueFormatter: (params: any) => params.value ? `$${Number(params.value).toLocaleString()}` : "",
+      field: "deal_mrr", headerName: "MRR", width: 90, editable: true, type: "numericColumn", filter: "agNumberColumnFilter",
+      valueFormatter: (params: any) => params.value != null ? `$${Number(params.value).toLocaleString()}` : "",
+    },
+    {
+      field: "deal_setup_fee", headerName: "Setup", width: 90, editable: true, type: "numericColumn", filter: "agNumberColumnFilter",
+      valueFormatter: (params: any) => params.value != null ? `$${Number(params.value).toLocaleString()}` : "",
+    },
+    {
+      field: "deal_arr", headerName: "ARR", width: 100, editable: false, type: "numericColumn", filter: "agNumberColumnFilter",
+      valueFormatter: (params: any) => params.value != null ? `$${Number(params.value).toLocaleString()}` : "",
+    },
+    {
+      // Show derived Y1 total when present, otherwise legacy deal_value.
+      field: "deal_year_1_total", headerName: "Y1 Total", width: 110, editable: false, type: "numericColumn", filter: "agNumberColumnFilter",
+      valueGetter: (params: any) => params.data?.deal_year_1_total ?? params.data?.deal_value ?? null,
+      valueFormatter: (params: any) => params.value != null ? `$${Number(params.value).toLocaleString()}` : "",
+    },
+    {
+      field: "deal_value", headerName: "Value (legacy)", width: 110, editable: true, type: "numericColumn", filter: "agNumberColumnFilter",
+      valueFormatter: (params: any) => params.value != null ? `$${Number(params.value).toLocaleString()}` : "",
     },
     {
       field: "deal_solution", headerName: "Solution", width: 130, editable: true, filter: "agSetColumnFilter",
@@ -317,7 +339,12 @@ export function ProjectsGrid({ projects, taskCounts, companyMap, initiativeMap, 
       id: p.id, name: p.name, project_type: p.project_type || "work", status: p.status || "active",
       description: p.description, owner: (p as any).owner,
       company_name: company?.name || null, company_stage: company?.stage || null,
-      deal_stage: p.deal_stage, deal_value: p.deal_value, deal_currency: p.deal_currency,
+      deal_stage: p.deal_stage, deal_value: p.deal_value,
+      deal_mrr: (p as any).deal_mrr ?? null,
+      deal_setup_fee: (p as any).deal_setup_fee ?? null,
+      deal_arr: (p as any).deal_arr ?? null,
+      deal_year_1_total: (p as any).deal_year_1_total ?? null,
+      deal_currency: p.deal_currency,
       deal_solution: p.deal_solution, deal_expected_close: p.deal_expected_close,
       deal_actual_close: p.deal_actual_close, deal_notes: p.deal_notes,
       deal_proposal_path: p.deal_proposal_path, deal_order_form_path: p.deal_order_form_path,

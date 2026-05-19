@@ -35,6 +35,10 @@ export interface WorkspaceWithDetails {
   company?: { id: string; name: string; display_name: string | null; stage: string | null } | null;
   deal_stage?: string | null;
   deal_value?: number | null;
+  deal_mrr?: number | null;
+  deal_setup_fee?: number | null;
+  deal_arr?: number | null;
+  deal_year_1_total?: number | null;
   deal_currency?: string | null;
   deal_solution?: string | null;
   deal_expected_close?: string | null;

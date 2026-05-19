@@ -23,6 +23,14 @@ export interface Deal {
   stage: string | null;
   solution: string | null;
   value: number | null;
+  /** Monthly recurring subscription revenue, SGD. Writable. */
+  mrr?: number | null;
+  /** One-time services / setup fee, SGD. Writable. */
+  setupFee?: number | null;
+  /** mrr * 12. Generated; read-only. */
+  arr?: number | null;
+  /** arr + setupFee. Generated; read-only. Prefer this over `value` for new deals. */
+  year1Total?: number | null;
   currency: string | null;
   expected_close_date: string | null;
   actual_close_date?: string | null;
@@ -37,6 +45,11 @@ export interface Deal {
   stale_snoozed_until?: string | null;
   created_at: string | null;
   updated_at?: string | null;
+}
+
+/** Effective Year-1 figure: prefer the derived total, fall back to the legacy column. */
+export function dealEffectiveValue(d: { year1Total?: number | null; value?: number | null }): number | null {
+  return d.year1Total ?? d.value ?? null;
 }
 export type DealInsert = Partial<Deal> & { name: string; company_id: string };
 export type DealUpdate = Partial<Deal>;
@@ -150,6 +163,7 @@ export const DEAL_STAGES = [
   { value: "negotiation" as const, label: "Negotiation", color: "yellow", weight: 0.8 },
   { value: "won" as const, label: "Won", color: "green", weight: 1.0 },
   { value: "lost" as const, label: "Lost", color: "red", weight: 0 },
+  { value: "passive" as const, label: "Passive", color: "zinc", weight: 0 },
 ];
 
 export const DEAL_SOLUTIONS = [
@@ -240,8 +254,29 @@ export const COMPANY_SOURCES = [
 ];
 
 // Pipeline stats type
+export interface PipelineStageStats {
+  stage: string;
+  count: number;
+  /** Back-compat: sum of dealEffectiveValue (year1Total ?? value). */
+  value: number;
+  mrr: number;
+  arr: number;
+  setupFee: number;
+  y1Total: number;
+}
+
 export interface PipelineStats {
-  byStage: { stage: string; count: number; value: number }[];
-  totalValue: number;
+  byStage: PipelineStageStats[];
   totalDeals: number;
+  /** Back-compat: sum of per-stage value. */
+  totalValue: number;
+  totalMrr: number;
+  totalArr: number;
+  totalSetupFee: number;
+  totalY1: number;
+  weightedValue: number;
+  weightedMrr: number;
+  weightedArr: number;
+  weightedSetupFee: number;
+  weightedY1: number;
 }

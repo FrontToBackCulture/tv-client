@@ -137,10 +137,10 @@ export async function gatherMyTasks(userId: string): Promise<TaskSnapshot> {
 async function gatherActiveDeals(): Promise<string | null> {
   const { data: deals } = await supabase
     .from("projects")
-    .select("name, deal_stage, deal_value, deal_expected_close, company:crm_companies!projects_company_id_fkey(name, display_name)")
+    .select("name, deal_stage, deal_value, deal_year_1_total, deal_mrr, deal_expected_close, company:crm_companies!projects_company_id_fkey(name, display_name)")
     .eq("project_type", "deal")
     .is("archived_at", null)
-    .not("deal_stage", "in", "(won,lost)")
+    .not("deal_stage", "in", "(won,lost,passive)")
     .order("deal_expected_close", { ascending: true, nullsFirst: false })
     .limit(10);
 
@@ -150,9 +150,12 @@ async function gatherActiveDeals(): Promise<string | null> {
   for (const d of deals) {
     const company = (d.company as unknown as { display_name?: string; name?: string })?.display_name
       || (d.company as unknown as { name?: string })?.name || "Unknown";
-    const value = d.deal_value ? `$${Number(d.deal_value).toLocaleString()}` : "no value";
+    const y1 = (d as { deal_year_1_total?: number | null }).deal_year_1_total ?? d.deal_value;
+    const value = y1 ? `$${Number(y1).toLocaleString()}` : "no value";
+    const mrr = (d as { deal_mrr?: number | null }).deal_mrr;
+    const mrrPart = mrr ? ` ($${Number(mrr).toLocaleString()}/mo)` : "";
     const close = d.deal_expected_close ? `close: ${d.deal_expected_close.slice(0, 10)}` : "no close date";
-    lines.push(`- ${company} — ${d.deal_stage || "unknown stage"} — ${value} (${close})`);
+    lines.push(`- ${company} — ${d.deal_stage || "unknown stage"} — ${value}${mrrPart} (${close})`);
   }
   return lines.join("\n");
 }

@@ -20,6 +20,10 @@ export interface DealFromProject {
   company_id: string | null;
   deal_stage: string | null;
   deal_value: number | null;
+  deal_mrr: number | null;
+  deal_setup_fee: number | null;
+  deal_arr: number | null;
+  deal_year_1_total: number | null;
   deal_currency: string | null;
   deal_solution: string | null;
   deal_expected_close: string | null;
@@ -50,6 +54,10 @@ function mapProjectToDeal(p: DealFromProject): DealWithTaskInfo {
     stage: p.deal_stage,
     solution: p.deal_solution,
     value: p.deal_value,
+    mrr: p.deal_mrr,
+    setupFee: p.deal_setup_fee,
+    arr: p.deal_arr,
+    year1Total: p.deal_year_1_total,
     currency: p.deal_currency,
     expected_close_date: p.deal_expected_close,
     actual_close_date: p.deal_actual_close,
@@ -148,6 +156,8 @@ export function useCreateDeal() {
       stage?: string | null;
       solution?: string | null;
       value?: number | null;
+      mrr?: number | null;
+      setupFee?: number | null;
       currency?: string | null;
       expected_close_date?: string | null;
       notes?: string | null;
@@ -164,6 +174,8 @@ export function useCreateDeal() {
           deal_stage: deal.stage ?? "prospect",
           deal_solution: deal.solution,
           deal_value: deal.value,
+          deal_mrr: deal.mrr,
+          deal_setup_fee: deal.setupFee,
           deal_currency: deal.currency ?? "SGD",
           deal_expected_close: deal.expected_close_date,
           deal_notes: deal.notes,
@@ -222,6 +234,8 @@ export function useUpdateDeal() {
         stage?: string | null;
         solution?: string | null;
         value?: number | null;
+        mrr?: number | null;
+        setupFee?: number | null;
         currency?: string | null;
         expected_close_date?: string | null;
         actual_close_date?: string | null;
@@ -252,6 +266,8 @@ export function useUpdateDeal() {
       if (updates.stage !== undefined) updateData.deal_stage = updates.stage;
       if (updates.solution !== undefined) updateData.deal_solution = updates.solution;
       if (updates.value !== undefined) updateData.deal_value = updates.value;
+      if (updates.mrr !== undefined) updateData.deal_mrr = updates.mrr;
+      if (updates.setupFee !== undefined) updateData.deal_setup_fee = updates.setupFee;
       if (updates.expected_close_date !== undefined) updateData.deal_expected_close = updates.expected_close_date;
       if (updates.actual_close_date !== undefined) updateData.deal_actual_close = updates.actual_close_date;
       if (updates.lost_reason !== undefined) updateData.deal_lost_reason = updates.lost_reason;

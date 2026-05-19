@@ -317,6 +317,10 @@ interface DealProjectRow {
   company_id: string;
   deal_stage: string | null;
   deal_value: number | null;
+  deal_mrr: number | null;
+  deal_setup_fee: number | null;
+  deal_arr: number | null;
+  deal_year_1_total: number | null;
   deal_currency: string | null;
   deal_solution: string | null;
   deal_expected_close: string | null;
@@ -336,8 +340,8 @@ export function useDealProjects() {
         .from("projects")
         .select(
           "id, name, priority, lead, updated_at, company_id, " +
-          "deal_stage, deal_value, deal_currency, deal_solution, " +
-          "deal_expected_close, deal_stage_changed_at, " +
+          "deal_stage, deal_value, deal_mrr, deal_setup_fee, deal_arr, deal_year_1_total, " +
+          "deal_currency, deal_solution, deal_expected_close, deal_stage_changed_at, " +
           "company:crm_companies!inner(id, name, display_name)"
         )
         .eq("project_type", "deal")
@@ -430,6 +434,10 @@ export function useDealProjects() {
           company_name: p.company?.display_name || p.company?.name || "Unknown",
           deal_stage: stage,
           deal_value: p.deal_value,
+          deal_mrr: p.deal_mrr,
+          deal_setup_fee: p.deal_setup_fee,
+          deal_arr: p.deal_arr,
+          deal_year_1_total: p.deal_year_1_total,
           deal_currency: p.deal_currency,
           deal_solution: p.deal_solution,
           deal_expected_close: p.deal_expected_close,
@@ -447,13 +455,14 @@ export function useDealProjects() {
         };
       });
 
-      // Sort: later stages first (closer to win), then higher value, then recency.
+      // Sort: later stages first (closer to win), then higher Y1 value, then recency.
+      const effective = (d: DealProject) => d.deal_year_1_total ?? d.deal_value ?? 0;
       enriched.sort((x, y) => {
         const sx = x.deal_stage ? DEAL_STAGE_ORDER[x.deal_stage] : -1;
         const sy = y.deal_stage ? DEAL_STAGE_ORDER[y.deal_stage] : -1;
         if (sx !== sy) return sy - sx;
-        if ((y.deal_value ?? 0) !== (x.deal_value ?? 0)) {
-          return (y.deal_value ?? 0) - (x.deal_value ?? 0);
+        if (effective(y) !== effective(x)) {
+          return effective(y) - effective(x);
         }
         return (y.updated_at ?? "").localeCompare(x.updated_at ?? "");
       });

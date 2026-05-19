@@ -181,12 +181,21 @@ export const DealCard = memo(function DealCard({
               </button>
             </div>
 
-            {/* Value row */}
-            {deal.value != null && deal.value > 0 && (
-              <p className="text-[12px] font-semibold text-teal-600 dark:text-teal-400 mt-1.5 tabular-nums">
-                ${deal.value.toLocaleString()}
-              </p>
-            )}
+            {/* Value row — prefer derived Y1 total, fall back to legacy deal_value */}
+            {(() => {
+              const y1 = deal.year1Total ?? deal.value;
+              if (y1 == null || y1 <= 0) return null;
+              return (
+                <p className="text-[12px] font-semibold text-teal-600 dark:text-teal-400 mt-1.5 tabular-nums">
+                  ${y1.toLocaleString()}
+                  {deal.mrr != null && deal.mrr > 0 && (
+                    <span className="ml-1.5 text-[10px] font-normal text-teal-500/80 dark:text-teal-400/70">
+                      ({deal.mrr.toLocaleString()}/mo)
+                    </span>
+                  )}
+                </p>
+              );
+            })()}
 
             {/* Meta row */}
             <div className="flex items-center gap-2.5 mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
@@ -306,11 +315,20 @@ export const DealCard = memo(function DealCard({
         </div>
 
         <div className="flex items-center gap-3 mt-2 text-xs">
-          {deal.value && (
-            <span className="font-medium text-teal-600 dark:text-teal-400">
-              ${deal.value.toLocaleString()} {deal.currency}
-            </span>
-          )}
+          {(() => {
+            const y1 = deal.year1Total ?? deal.value;
+            if (!y1) return null;
+            return (
+              <span className="font-medium text-teal-600 dark:text-teal-400">
+                ${y1.toLocaleString()} {deal.currency}
+                {deal.mrr != null && deal.mrr > 0 && (
+                  <span className="ml-1 text-[10px] font-normal text-teal-500/80 dark:text-teal-400/70">
+                    · ${deal.mrr.toLocaleString()}/mo
+                  </span>
+                )}
+              </span>
+            );
+          })()}
           {deal.expected_close_date && (
             <span className="text-zinc-500">
               Close {formatDate(deal.expected_close_date)}

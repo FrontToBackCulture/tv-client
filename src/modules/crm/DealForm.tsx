@@ -26,12 +26,23 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
     description: deal?.description || "",
     stage: deal?.stage || "qualified",
     solution: deal?.solution || "ap_automation",
-    value: deal?.value || 0,
+    value: deal?.value ?? null,
+    mrr: deal?.mrr ?? null,
+    setupFee: deal?.setupFee ?? null,
     currency: deal?.currency || "SGD",
     expected_close_date: deal?.expected_close_date || "",
     notes: deal?.notes || "",
   });
+  const [showLegacyValue, setShowLegacyValue] = useState<boolean>(
+    !!(deal?.value && !deal?.mrr && !deal?.setupFee)
+  );
   const [error, setError] = useState<string | null>(null);
+
+  const mrrNum = Number(formData.mrr) || 0;
+  const setupNum = Number(formData.setupFee) || 0;
+  const arrDerived = mrrNum * 12;
+  const y1Derived = arrDerived + setupNum;
+  const hasComponents = formData.mrr != null || formData.setupFee != null;
 
   const createMutation = useCreateDeal();
   const updateMutation = useUpdateDeal();
@@ -122,20 +133,44 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Value">
+        <FormField label="MRR (per month)">
           <Input
             type="number"
-            value={formData.value || ""}
+            value={formData.mrr ?? ""}
             onChange={(e) =>
               setFormData({
                 ...formData,
-                value: e.target.value ? parseInt(e.target.value) : 0,
+                mrr: e.target.value === "" ? null : parseFloat(e.target.value),
               })
             }
             placeholder="0"
           />
         </FormField>
 
+        <FormField label="Setup fee (one-time)">
+          <Input
+            type="number"
+            value={formData.setupFee ?? ""}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                setupFee: e.target.value === "" ? null : parseFloat(e.target.value),
+              })
+            }
+            placeholder="0"
+          />
+        </FormField>
+      </div>
+
+      {hasComponents && (
+        <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums -mt-2">
+          ARR: {formData.currency || "SGD"} {arrDerived.toLocaleString()}
+          {"  •  "}
+          Year 1: {formData.currency || "SGD"} {y1Derived.toLocaleString()}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
         <FormField label="Currency">
           <Select
             value={formData.currency || "SGD"}
@@ -147,6 +182,30 @@ export function DealForm({ deal, companyId, onClose, onSaved }: DealFormProps) {
             <option value="USD">USD</option>
             <option value="MYR">MYR</option>
           </Select>
+        </FormField>
+
+        <FormField label={showLegacyValue ? "Year 1 (legacy override)" : ""}>
+          {showLegacyValue ? (
+            <Input
+              type="number"
+              value={formData.value ?? ""}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  value: e.target.value === "" ? null : parseFloat(e.target.value),
+                })
+              }
+              placeholder="0"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowLegacyValue(true)}
+              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline self-end pb-2"
+            >
+              Use legacy Year-1 override
+            </button>
+          )}
         </FormField>
       </div>
 

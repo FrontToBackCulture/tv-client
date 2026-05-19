@@ -1,7 +1,7 @@
 // Unified column definitions for all review resource types
 
 import React from "react";
-import { ColDef, ColGroupDef, ValueFormatterParams } from "ag-grid-community";
+import { ColDef, ColGroupDef, ValueFormatterParams, ValueGetterParams } from "ag-grid-community";
 import type { ReviewResourceType, ReviewRow } from "./reviewTypes";
 import {
   NameCellRenderer,
@@ -796,6 +796,20 @@ function buildArtifactColumns(
       { field: "pluginCount", headerName: "Plugins", width: 90, filter: "agNumberColumnFilter" },
       { field: "description", headerName: "Description", width: 200, filter: "agTextColumnFilter" },
     );
+  } else if (resourceType === "drive_file") {
+    typeCols.push({
+      colId: "folder",
+      headerName: "Folder",
+      width: 260,
+      filter: "agTextColumnFilter",
+      // Containing folder = full file path minus the leaf. Derived so no
+      // ReviewRow schema change is needed.
+      valueGetter: (p: ValueGetterParams<ReviewRow>) => {
+        const fp = p.data?.folderName ?? "";
+        const i = fp.lastIndexOf("/");
+        return i > 0 ? fp.slice(0, i) : "";
+      },
+    });
   }
 
   // Classification columns (editable)
