@@ -1,10 +1,19 @@
 // src/modules/referrals/CollateralView.tsx
 // Manage partner-facing sales decks — toggle published, edit metadata
 
-import { useMemo, useState } from "react";
-import { Eye, EyeOff, Pencil, ExternalLink, X, Check, Layers } from "lucide-react";
-import { usePartnerDecks, useUpdateDeck, PartnerDeck } from "../../hooks/usePartnerDecks";
+import { useMemo, useRef, useState, type FormEvent, type ChangeEvent } from "react";
+import { Eye, EyeOff, Pencil, ExternalLink, X, Check, Layers, Plus, Upload } from "lucide-react";
+import {
+  usePartnerDecks,
+  useUpdateDeck,
+  useCreateDeck,
+  useReplaceDeckFile,
+  slugify,
+  PartnerDeck,
+} from "../../hooks/usePartnerDecks";
 import { CollapsibleSection } from "../../components/ui/CollapsibleSection";
+import { FormModal, FormField, Input } from "../../components/ui";
+import { toast } from "../../stores/toastStore";
 import { cn } from "../../lib/cn";
 
 type Filter = "all" | "published" | "hidden";
@@ -18,6 +27,23 @@ const FILTERS: { id: Filter; label: string; icon: typeof Layers }[] = [
 export function CollateralView() {
   const { data: decks = [], isLoading } = usePartnerDecks();
   const updateDeck = useUpdateDeck();
+  const createDeck = useCreateDeck();
+  const replaceFile = useReplaceDeckFile();
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    title: "",
+    slug: "",
+    slugTouched: false,
+    description: "",
+    guidance: "",
+  });
+  const [createFile, setCreateFile] = useState<File | null>(null);
+
+  // Hidden input drives "Replace file" on an existing deck.
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{
     title: string;
@@ -77,6 +103,60 @@ export function CollateralView() {
     );
   };
 
+  const resetCreate = () => {
+    setShowCreate(false);
+    setCreateForm({ title: "", slug: "", slugTouched: false, description: "", guidance: "" });
+    setCreateFile(null);
+  };
+
+  const previewSlug = slugify(
+    createForm.slugTouched ? createForm.slug : createForm.title,
+  );
+
+  const handleCreate = (e: FormEvent) => {
+    e.preventDefault();
+    if (!createFile) {
+      toast.error("Select a deck HTML file");
+      return;
+    }
+    createDeck.mutate(
+      {
+        slug: previewSlug,
+        title: createForm.title,
+        description: createForm.description || null,
+        guidance: createForm.guidance || null,
+        file: createFile,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Deck created — hidden until you publish it");
+          resetCreate();
+        },
+        onError: (err) => toast.error(err.message),
+      },
+    );
+  };
+
+  const handleReplacePick = (deck: PartnerDeck) => {
+    setReplaceTargetId(deck.id);
+    replaceInputRef.current?.click();
+  };
+
+  const handleReplaceFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    const deck = decks.find((d) => d.id === replaceTargetId);
+    setReplaceTargetId(null);
+    if (!file || !deck) return;
+    replaceFile.mutate(
+      { id: deck.id, slug: deck.slug, file },
+      {
+        onSuccess: () => toast.success(`Replaced ${deck.slug}.html`),
+        onError: (err) => toast.error(err.message),
+      },
+    );
+  };
+
   const websiteUrl = "https://thinkval.co";
 
   const itemBase = "flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors";
@@ -85,6 +165,77 @@ export function CollateralView() {
 
   return (
     <div className="h-full flex overflow-hidden px-4 py-4">
+     <input
+       ref={replaceInputRef}
+       type="file"
+       accept=".html,text/html"
+       className="hidden"
+       onChange={handleReplaceFile}
+     />
+
+     {showCreate && (
+       <FormModal
+         title="New deck"
+         onClose={resetCreate}
+         onSubmit={handleCreate}
+         submitLabel="Create deck"
+         isSaving={createDeck.isPending}
+       >
+         <FormField label="Title" required>
+           <Input
+             value={createForm.title}
+             onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+             placeholder="VAL for F&B — Agentic AI Platform"
+             autoFocus
+           />
+         </FormField>
+         <FormField
+           label="Slug"
+           required
+           hint={`Share URL: thinkval.co/d/${previewSlug || "…"} · Storage: ${previewSlug || "…"}.html (permanent — pick carefully)`}
+         >
+           <Input
+             value={createForm.slugTouched ? createForm.slug : previewSlug}
+             onChange={(e) =>
+               setCreateForm((f) => ({ ...f, slug: e.target.value, slugTouched: true }))
+             }
+             placeholder="val-fandb"
+           />
+         </FormField>
+         <FormField label="Description" hint="What this deck covers (shown in the partner list)">
+           <Input
+             value={createForm.description}
+             onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+             placeholder="Full platform overview — how AI agents automate reconciliation…"
+           />
+         </FormField>
+         <FormField label="Guidance" hint="When a partner should send this deck">
+           <Input
+             value={createForm.guidance}
+             onChange={(e) => setCreateForm((f) => ({ ...f, guidance: e.target.value }))}
+             placeholder="First touch. Send when a prospect doesn't know VAL yet."
+           />
+         </FormField>
+         <FormField
+           label="Deck HTML file"
+           required
+           hint="Self-contained .html (assets inlined). Uploaded to Supabase Storage."
+         >
+           <input
+             type="file"
+             accept=".html,text/html"
+             onChange={(e) => setCreateFile(e.target.files?.[0] ?? null)}
+             className="block w-full text-xs text-zinc-500 dark:text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-zinc-100 file:text-zinc-700 dark:file:bg-zinc-800 dark:file:text-zinc-300 hover:file:bg-zinc-200 dark:hover:file:bg-zinc-700"
+           />
+           {createFile && (
+             <p className="mt-1 text-xs text-zinc-400">
+               {createFile.name} · {(createFile.size / 1024).toFixed(0)} KB
+             </p>
+           )}
+         </FormField>
+       </FormModal>
+     )}
+
      <div className="flex-1 min-h-0 flex overflow-hidden border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950">
       {/* Sidebar */}
       <aside className="w-56 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 flex flex-col overflow-hidden rounded-l-md">
@@ -112,6 +263,15 @@ export function CollateralView() {
 
       {/* Content */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-end px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-800">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-zinc-200 dark:text-zinc-900 dark:hover:bg-zinc-300 transition-colors"
+          >
+            <Plus size={13} />
+            New deck
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
@@ -163,6 +323,16 @@ export function CollateralView() {
                         >
                           <Check size={12} className="inline mr-1" />
                           Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleReplacePick(deck)}
+                          disabled={replaceFile.isPending}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors"
+                          title="Upload a new HTML file for this deck"
+                        >
+                          <Upload size={12} className="inline mr-1" />
+                          {replaceFile.isPending ? "Uploading…" : "Replace file"}
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
